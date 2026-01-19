@@ -2823,7 +2823,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                         <div className="flex items-center justify-between">
                                           <span className="text-xs font-medium text-gray-600">Subtotal</span>
                                           <span className="text-base font-bold text-teal-600">
-                                            {currency.format((Number(item.price) || 0) * (item.quantity || 1))}
+                                            {currency.format(Number(item.subtotal) || ((Number(item.price) || 0) * (item.quantity || 1)))}
                                           </span>
                                         </div>
                                       </div>
