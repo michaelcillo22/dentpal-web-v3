@@ -2413,7 +2413,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                         </div>
                         <div className="text-xs font-semibold text-rose-600 bg-rose-200 px-2 py-1 rounded-full">
                           {(() => {
-                            const refundCount = paidOrders.filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund').length;
+                            const refundCount = filteredOrders.filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund').length;
                             return refundCount;
                           })()}
                         </div>
@@ -2422,13 +2422,13 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                         <p className="text-xs font-medium text-rose-700 uppercase tracking-wide">Total Refunds</p>
                         <p className="text-3xl font-bold text-rose-900">
                           {currency.format(
-                            paidOrders
+                            filteredOrders
                               .filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund')
                               .reduce((sum, o) => sum + (Number(o.summary?.subtotal) || 0), 0)
                           )}
                         </p>
                         <p className="text-xs text-rose-600">
-                          From {paidOrders.filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund').length} refunded orders
+                          From {filteredOrders.filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund').length} refunded orders
                         </p>
                       </div>
                     </div>
