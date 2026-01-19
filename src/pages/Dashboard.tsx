@@ -2572,7 +2572,16 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                               
                               return (
                                 <tr 
-                                  key={order.id || idx} 
+                                  key={order.id || idx}
+                                  role="button"
+                                  tabIndex={0}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      setSelectedReceipt(order);
+                                      setReceiptDetailOpen(true);
+                                    }
+                                  }}
                                   onClick={() => {
                                     setSelectedReceipt(order);
                                     setReceiptDetailOpen(true);
