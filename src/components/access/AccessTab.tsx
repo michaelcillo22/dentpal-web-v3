@@ -94,7 +94,7 @@ function normalizeTimestamp(value: any): number | null {
   // Helper to get display label for permissions
   const getPermissionLabel = (key: string): string => {
     const labelMap: Record<string, string> = {
-      'dashboard': 'Sales Summary',
+      'dashboard': 'Sales',
       'profile': 'Profile',
       'bookings': 'Booking',
       'confirmation': 'Confirmation',
@@ -1105,7 +1105,7 @@ const AccessTab = ({ loading = false, error, setError, onTabChange, onEditUser }
             <div className="space-y-4">
               <h4 className="text-lg font-medium text-gray-900">Access</h4>
               <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-lg p-3">
-                Sellers automatically have access to: <span className="font-medium">Sales Summary, Profile, Inventory Control, Orders, Items, Access (Sub Accounts)</span>.
+                Sellers automatically have access to: <span className="font-medium">Sales, Profile, Inventory Control, Orders, Items, Access (Sub Accounts)</span>.
               </div>
             </div>
           )}

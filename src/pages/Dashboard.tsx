@@ -20,7 +20,7 @@ import ChatsTab from '@/components/chats/ChatsTab';
 import { ItemsTab, ItemsAll, ItemsList } from '@/components/items';
 import AddItem from '@/components/items/AddItem';
 import { Order } from "@/types/order";
-import { DollarSign, Users, ShoppingCart, TrendingUp, Filter, Download, ChevronDown, ChevronRight } from "lucide-react";
+import { DollarSign, Users, ShoppingCart, TrendingUp, Filter, Download, ChevronDown, ChevronRight, ClipboardList, CreditCard } from "lucide-react";
 // Add permission-aware auth hook
 import { useAuth } from "@/hooks/use-auth";
 import SellerProfileTab from '@/components/profile/SellerProfileTab';
@@ -73,6 +73,9 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
   const [showTutorial, setShowTutorial] = useState(false);
   const [sellerFilters, setSellerFilters] = useState({ dateRange: 'last-30', brand: 'all', subcategory: 'all', location: 'all', paymentType: 'all', viewType: 'summary', viewExpanded: false });
   const [itemChartType, setItemChartType] = useState<'line' | 'bar' | 'pie'>('bar');
+  // Receipt detail side panel state
+  const [receiptDetailOpen, setReceiptDetailOpen] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState<Order | null>(null);
   
   // Handler for sidebar navigation with dashboard sub-items
   const handleItemClick = (itemId: string) => {
@@ -306,7 +309,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
 
   const kpiMetrics = useMemo(() => {
     const receipts = paidOrders.length;
-    const totalRevenue = paidOrders.reduce((s, o) => s + getAmount(o), 0);
+    const totalRevenue = paidOrders.reduce((s, o) => s + (Number(o.summary?.subtotal) || 0), 0);
     const avgSalePerTxn = receipts ? (totalRevenue / receipts) : 0;
     const logisticsDue = paidOrders.reduce((s, o) => s + (Number(o.shipping || 0) + Number(o.fees || 0)), 0);
 
@@ -1218,7 +1221,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                       paidOrders.forEach(o => {
                         const key = o.timestamp.slice(0,10); // YYYY-MM-DD
                         const prev = byDate.get(key) || { amount: 0, count: 0 };
-                        byDate.set(key, { amount: prev.amount + getAmount(o), count: prev.count + 1 });
+                        byDate.set(key, { amount: prev.amount + (Number(o.summary?.subtotal) || 0), count: prev.count + 1 });
                       });
                       const series = Array.from(byDate.entries())
                         .sort(([a],[b]) => a.localeCompare(b))
@@ -1492,7 +1495,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                         {/* Right: Sales Chart with Chart Type Selector */}
                         <div>
                           <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-sm font-medium text-gray-700">Sales by Item Chart</h4>
+                            <h4 className="text-sm font-medium text-gray-700">TOP 5 ITEMS BY QUANTITY SOLD</h4>
                             <select 
                               className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent"
                               value={itemChartType}
@@ -1511,17 +1514,15 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                               items.forEach((item: any) => {
                                 const itemName = item.productName || item.name || 'Unknown Item';
                                 const quantity = Number(item.quantity) || 0;
-                                const price = Number(item.price) || 0;
-                                const itemSubtotal = Number(item.subtotal) || (price * quantity);
                                 const existing = itemMap.get(itemName) || 0;
-                                itemMap.set(itemName, existing + itemSubtotal);
+                                itemMap.set(itemName, existing + quantity);
                               });
                             });
 
                             const chartData = Array.from(itemMap.entries())
                               .sort((a, b) => b[1] - a[1])
                               .slice(0, 5)
-                              .map(([name, sales]) => ({ name, sales }));
+                              .map(([name, quantity]) => ({ name, quantity }));
 
                             if (chartData.length === 0) {
                               return (
@@ -1534,7 +1535,6 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                               );
                             }
 
-                            const maxSales = Math.max(...chartData.map(d => d.sales));
                             const COLORS = ['#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899'];
 
                             // Line Chart
@@ -1556,7 +1556,6 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                       <YAxis 
                                         stroke="#9ca3af"
                                         fontSize={11}
-                                        tickFormatter={(value) => currency.format(value)}
                                       />
                                       <Tooltip 
                                         contentStyle={{
@@ -1565,11 +1564,11 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                           borderRadius: "8px",
                                           fontSize: "12px",
                                         }}
-                                        formatter={(value: any) => [currency.format(value), 'Sales']}
+                                        formatter={(value: any) => [value.toLocaleString() + ' units', 'Quantity Sold']}
                                       />
                                       <Line 
                                         type="monotone" 
-                                        dataKey="sales" 
+                                        dataKey="quantity" 
                                         stroke="#14b8a6" 
                                         strokeWidth={2}
                                         dot={{ fill: '#14b8a6', r: 4 }}
@@ -1589,7 +1588,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                     <PieChart>
                                       <Pie
                                         data={chartData}
-                                        dataKey="sales"
+                                        dataKey="quantity"
                                         nameKey="name"
                                         cx="50%"
                                         cy="50%"
@@ -1607,7 +1606,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                           fontSize: "12px",
                                           padding: "8px 12px",
                                         }}
-                                        formatter={(value: any, name: string) => [currency.format(value), 'Sales']}
+                                        formatter={(value: any, name: string) => [value.toLocaleString() + ' units', 'Quantity Sold']}
                                       />
                                       <Legend 
                                         verticalAlign="bottom" 
@@ -1632,7 +1631,6 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                       type="number"
                                       stroke="#9ca3af"
                                       fontSize={11}
-                                      tickFormatter={(value) => currency.format(value)}
                                     />
                                     <YAxis 
                                       type="category"
@@ -1648,10 +1646,10 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                         borderRadius: "8px",
                                         fontSize: "12px",
                                       }}
-                                      formatter={(value: any) => [currency.format(value), 'Sales']}
+                                      formatter={(value: any) => [value.toLocaleString() + ' units', 'Quantity Sold']}
                                     />
                                     <Bar 
-                                      dataKey="sales" 
+                                      dataKey="quantity" 
                                       fill="#14b8a6"
                                       radius={[0, 8, 8, 0]}
                                     />
@@ -2365,212 +2363,542 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
               )}
 
               {/* By Receipts View */}
-              {sellerFilters.viewType === 'Receipts' && (
+              {sellerFilters.viewType === 'receipts' && (
                 <>
-                  {/* Export Table - All Receipts by Payment Type */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-gray-800 tracking-wide">RECEIPTS BY PAYMENT TYPE</h3>
-                      <button 
-                        onClick={() => {
-                          try {
-                            console.log('[exportReceiptsCSV] Starting export with', paidOrders.length, 'paid orders');
+                  {/* Metrics Cards - All Receipts, Sales, Refund */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    {/* All Receipts Metric */}
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-6 shadow-sm border border-blue-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+                          <ClipboardList className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="text-xs font-semibold text-blue-600 bg-blue-200 px-2 py-1 rounded-full">
+                          {paidOrders.length > 0 ? '+' + ((paidOrders.length / Math.max(paidOrders.length - 1, 1)) * 100).toFixed(0) + '%' : '0%'}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-blue-700 uppercase tracking-wide">All Receipts</p>
+                        <p className="text-3xl font-bold text-blue-900">{paidOrders.length.toLocaleString()}</p>
+                        <p className="text-xs text-blue-600">Total transactions recorded</p>
+                      </div>
+                    </div>
+
+                    {/* Sales Metric */}
+                    <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-6 shadow-sm border border-emerald-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-12 h-12 bg-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                          <TrendingUp className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="text-xs font-semibold text-emerald-600 bg-emerald-200 px-2 py-1 rounded-full">
+                          Active
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-emerald-700 uppercase tracking-wide">Total Sales</p>
+                        <p className="text-3xl font-bold text-emerald-900">
+                          {currency.format(paidOrders.reduce((sum, o) => sum + (Number(o.summary?.subtotal) || 0), 0))}
+                        </p>
+                        <p className="text-xs text-emerald-600">Revenue from {paidOrders.length} transactions</p>
+                      </div>
+                    </div>
+
+                    {/* Refund Metric */}
+                    <div className="bg-gradient-to-br from-rose-50 to-rose-100 rounded-2xl p-6 shadow-sm border border-rose-200">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="w-12 h-12 bg-rose-600 rounded-xl flex items-center justify-center shadow-lg">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z" />
+                          </svg>
+                        </div>
+                        <div className="text-xs font-semibold text-rose-600 bg-rose-200 px-2 py-1 rounded-full">
+                          {(() => {
+                            const refundCount = paidOrders.filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund').length;
+                            return refundCount;
+                          })()}
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-rose-700 uppercase tracking-wide">Total Refunds</p>
+                        <p className="text-3xl font-bold text-rose-900">
+                          {currency.format(
+                            paidOrders
+                              .filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund')
+                              .reduce((sum, o) => sum + (Number(o.summary?.subtotal) || 0), 0)
+                          )}
+                        </p>
+                        <p className="text-xs text-rose-600">
+                          From {paidOrders.filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund').length} refunded orders
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Export Button */}
+                  <div className="flex justify-end mb-4">
+                    <button 
+                      onClick={() => {
+                        try {
+                          console.log('[exportReceiptsCSV] Starting export with', paidOrders.length, 'paid orders');
+                          
+                          const headers = [
+                            'Receipt No.',
+                            'Date',
+                            'Customer Name',
+                            'Customer ID',
+                            'Payment Type',
+                            'Amount',
+                            'Status'
+                          ];
+
+                          const rows = paidOrders.map(order => {
+                            const createdAt = order.createdAt || order.timestamp || '';
+                            const date = createdAt ? new Date(createdAt).toLocaleDateString('en-US', { 
+                              year: 'numeric', 
+                              month: 'short', 
+                              day: 'numeric' 
+                            }) : '';
                             
-                            // Aggregate receipts by payment type
-                            const receiptMap = new Map<string, {
-                              paymentType: string;
-                              paymentTransactions: number;
-                              paymentAmount: number;
-                              refundTransactions: number;
-                              refundAmount: number;
-                              netPayout: number;
-                            }>();
-
-                            paidOrders.forEach(order => {
-                              const summary = order.summary || {};
-                              const fees = order.feesBreakdown || {};
-                              
-                              // Get payment method from fees.paymentMethod
-                              const paymentMethod = fees.paymentMethod || 'Unknown';
-                              
-                              const orderSubtotal = Number(summary.subtotal) || 0;
-                              const orderPaymentFee = Number(fees.paymentProcessingFee) || 0;
-                              const orderShippingFee = Number(summary.sellerShippingCharge) || 0;
-                              const orderPlatformFee = Number(fees.platformFee) || 0;
-                              const orderNetPayout = orderSubtotal - orderPaymentFee - orderShippingFee - orderPlatformFee;
-
-                              const existing = receiptMap.get(paymentMethod) || {
-                                paymentType: paymentMethod,
-                                paymentTransactions: 0,
-                                paymentAmount: 0,
-                                refundTransactions: 0,
-                                refundAmount: 0,
-                                netPayout: 0
-                              };
-
-                              receiptMap.set(paymentMethod, {
-                                paymentType: paymentMethod,
-                                paymentTransactions: existing.paymentTransactions + 1,
-                                paymentAmount: existing.paymentAmount + orderSubtotal,
-                                refundTransactions: existing.refundTransactions,
-                                refundAmount: existing.refundAmount,
-                                netPayout: existing.netPayout + orderNetPayout
-                              });
-                            });
-
-                            const allReceipts = Array.from(receiptMap.values())
-                              .sort((a, b) => b.netPayout - a.netPayout);
-
-                            const headers = [
-                              'Payment Type',
-                              'Payment Transactions',
-                              'Payment Amount',
-                              'Refund Transactions',
-                              'Refund Amount',
-                              'Net Payout'
+                            return [
+                              `"${order.id || ''}"`,
+                              `"${date}"`,
+                              `"${order.customer?.name || 'N/A'}"`,
+                              `"${order.userId || order.customer?.id || 'N/A'}"`,
+                              `"${order.feesBreakdown?.paymentMethod || 'N/A'}"`,
+                              (Number(order.summary?.subtotal) || 0).toFixed(2),
+                              `"${order.status || 'N/A'}"`
                             ];
+                          });
 
-                            const rows = allReceipts.map(receipt => [
-                              `"${receipt.paymentType}"`,
-                              receipt.paymentTransactions,
-                              receipt.paymentAmount.toFixed(2),
-                              receipt.refundTransactions,
-                              receipt.refundAmount.toFixed(2),
-                              receipt.netPayout.toFixed(2)
-                            ]);
+                          const csvContent = [
+                            headers.join(','),
+                            ...rows.map(row => row.join(','))
+                          ].join('\n');
 
-                            const csvContent = [
-                              headers.join(','),
-                              ...rows.map(row => row.join(','))
-                            ].join('\n');
+                          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                          const link = document.createElement('a');
+                          const url = URL.createObjectURL(blob);
+                          link.setAttribute('href', url);
+                          link.setAttribute('download', `receipts-individual-${new Date().toISOString().slice(0,10)}.csv`);
+                          link.style.visibility = 'hidden';
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        } catch (err) {
+                          console.error('CSV export failed:', err);
+                          setError('Failed to export receipts CSV. Please try again.');
+                        }
+                      }}
+                      disabled={paidOrders.length === 0}
+                      className="flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-teal-600 to-teal-700 rounded-xl hover:from-teal-700 hover:to-teal-800 transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Download className="w-4 h-4" />
+                      Export Receipts
+                    </button>
+                  </div>
 
-                            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-                            const link = document.createElement('a');
-                            const url = URL.createObjectURL(blob);
-                            link.setAttribute('href', url);
-                            link.setAttribute('download', `receipts-${new Date().toISOString().slice(0,10)}.csv`);
-                            link.style.visibility = 'hidden';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                          } catch (err) {
-                            console.error('CSV export failed:', err);
-                            setError('Failed to export receipts CSV. Please try again.');
-                          }
-                        }}
-                        disabled={paidOrders.length === 0}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Export CSV
-                      </button>
+                  {/* Receipts Table - Individual Transactions */}
+                  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-gray-100">
+                      <h3 className="text-lg font-bold text-gray-900">Receipt Transactions</h3>
+                      <p className="text-sm text-gray-500 mt-1">Detailed list of all individual receipt transactions</p>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
-                        <thead className="bg-gray-50 text-gray-600">
-                          <tr className="text-left text-xs font-semibold tracking-wide">
-                            <th className="px-6 py-3">Payment Type</th>
-                            <th className="px-6 py-3 text-right">Payment Transactions</th>
-                            <th className="px-6 py-3 text-right">Payment Amount</th>
-                            <th className="px-6 py-3 text-right">Refund Transactions</th>
-                            <th className="px-6 py-3 text-right">Refund Amount</th>
-                            <th className="px-6 py-3 text-right font-bold">Net Payout</th>
+                        <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                          <tr className="text-left text-xs font-bold tracking-wider uppercase">
+                            <th className="px-6 py-4 text-gray-700">Receipt No.</th>
+                            <th className="px-6 py-4 text-gray-700">Date</th>
+                            <th className="px-6 py-4 text-gray-700">Customer</th>
+                            <th className="px-6 py-4 text-gray-700">Type</th>
+                            <th className="px-6 py-4 text-right text-gray-700">Amount</th>
+                            <th className="px-6 py-4 text-center text-gray-700">Status</th>
                           </tr>
                         </thead>
-                        <tbody>
+                        <tbody className="divide-y divide-gray-100">
                           {(() => {
-                            // Aggregate receipts by payment type
-                            const receiptMap = new Map<string, {
-                              paymentType: string;
-                              paymentTransactions: number;
-                              paymentAmount: number;
-                              refundTransactions: number;
-                              refundAmount: number;
-                              netPayout: number;
-                            }>();
-
-                            paidOrders.forEach(order => {
-                              const summary = order.summary || {};
-                              const fees = order.feesBreakdown || {};
-                              
-                              // Get payment method from fees.paymentMethod
-                              const paymentMethod = fees.paymentMethod || 'Unknown';
-                              
-                              const orderSubtotal = Number(summary.subtotal) || 0;
-                              const orderPaymentFee = Number(fees.paymentProcessingFee) || 0;
-                              const orderShippingFee = Number(summary.sellerShippingCharge) || 0;
-                              const orderPlatformFee = Number(fees.platformFee) || 0;
-                              const orderNetPayout = orderSubtotal - orderPaymentFee - orderShippingFee - orderPlatformFee;
-
-                              const existing = receiptMap.get(paymentMethod) || {
-                                paymentType: paymentMethod,
-                                paymentTransactions: 0,
-                                paymentAmount: 0,
-                                refundTransactions: 0,
-                                refundAmount: 0,
-                                netPayout: 0
-                              };
-
-                              receiptMap.set(paymentMethod, {
-                                paymentType: paymentMethod,
-                                paymentTransactions: existing.paymentTransactions + 1,
-                                paymentAmount: existing.paymentAmount + orderSubtotal,
-                                refundTransactions: existing.refundTransactions,
-                                refundAmount: existing.refundAmount,
-                                netPayout: existing.netPayout + orderNetPayout
-                              });
-                            });
-
-                            // Sort by net payout (descending)
-                            const allReceipts = Array.from(receiptMap.values())
-                              .sort((a, b) => b.netPayout - a.netPayout);
-
-                            if (allReceipts.length === 0) {
+                            if (paidOrders.length === 0) {
                               return (
                                 <tr>
                                   <td colSpan={6} className="px-6 py-16">
-                                    <div className="flex flex-col items-center justify-center text-center text-gray-500">
-                                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-                                        <span className="text-xs font-semibold text-gray-400">⌀</span>
+                                    <div className="flex flex-col items-center justify-center text-center">
+                                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-gray-100 to-gray-200 flex items-center justify-center mb-4 shadow-inner">
+                                        <ClipboardList className="w-10 h-10 text-gray-400" />
                                       </div>
-                                      <div className="text-sm font-medium">No receipts to display</div>
-                                      <div className="mt-1 text-xs text-gray-400">There are no sales in the selected time period</div>
+                                      <div className="text-lg font-semibold text-gray-900 mb-2">No receipts found</div>
+                                      <div className="text-sm text-gray-500">There are no receipt transactions in the selected time period</div>
                                     </div>
                                   </td>
                                 </tr>
                               );
                             }
 
-                            return allReceipts.map((receipt, idx) => (
-                              <tr key={idx} className="border-t hover:bg-gray-50">
-                                <td className="px-6 py-4 text-gray-900 font-medium">{receipt.paymentType}</td>
-                                <td className="px-6 py-4 text-gray-700 text-right">{receipt.paymentTransactions.toLocaleString()}</td>
-                                <td className="px-6 py-4 text-gray-900 text-right font-medium">{currency.format(receipt.paymentAmount)}</td>
-                                <td className="px-6 py-4 text-red-600 text-right">{receipt.refundTransactions.toLocaleString()}</td>
-                                <td className="px-6 py-4 text-red-600 text-right">{currency.format(receipt.refundAmount)}</td>
-                                <td className="px-6 py-4 text-green-600 text-right font-bold text-base">{currency.format(receipt.netPayout)}</td>
-                              </tr>
-                            ));
+                            // Sort by date descending (most recent first)
+                            const sortedOrders = [...paidOrders].sort((a, b) => {
+                              const dateA = new Date(a.createdAt || a.timestamp || '').getTime();
+                              const dateB = new Date(b.createdAt || b.timestamp || '').getTime();
+                              return dateB - dateA;
+                            });
+
+                            return sortedOrders.map((order, idx) => {
+                              const createdAt = order.createdAt || order.timestamp || '';
+                              const date = createdAt ? new Date(createdAt).toLocaleDateString('en-US', { 
+                                year: 'numeric', 
+                                month: 'short', 
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              }) : 'N/A';
+                              
+                              const customerName = order.customer?.name || 'Unknown Customer';
+                              const paymentType = order.feesBreakdown?.paymentMethod || 'N/A';
+                              const amount = Number(order.summary?.subtotal) || 0;
+                              const status = order.status || 'pending';
+                              
+                              // Status styling
+                              const statusConfig: Record<string, { bg: string; text: string; label: string }> = {
+                                'completed': { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'Completed' },
+                                'confirmed': { bg: 'bg-green-100', text: 'text-green-700', label: 'Confirmed' },
+                                'processing': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Processing' },
+                                'to_ship': { bg: 'bg-indigo-100', text: 'text-indigo-700', label: 'To Ship' },
+                                'pending': { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Pending' },
+                                'refunded': { bg: 'bg-rose-100', text: 'text-rose-700', label: 'Refunded' },
+                                'returned': { bg: 'bg-rose-100', text: 'text-rose-700', label: 'Returned' },
+                                'return_refund': { bg: 'bg-rose-100', text: 'text-rose-700', label: 'Return/Refund' },
+                                'cancelled': { bg: 'bg-gray-100', text: 'text-gray-700', label: 'Cancelled' }
+                              };
+                              
+                              const statusStyle = statusConfig[status] || statusConfig['pending'];
+                              
+                              return (
+                                <tr 
+                                  key={order.id || idx} 
+                                  onClick={() => {
+                                    setSelectedReceipt(order);
+                                    setReceiptDetailOpen(true);
+                                  }}
+                                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                                >
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-teal-500 to-teal-600 flex items-center justify-center shadow-sm">
+                                        <span className="text-white text-xs font-bold">#{idx + 1}</span>
+                                      </div>
+                                      <div>
+                                        <div className="font-semibold text-gray-900">{order.id}</div>
+                                        <div className="text-xs text-gray-500">Barcode: {order.barcode || 'N/A'}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="text-gray-900 font-medium">{date}</div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                                        {customerName.charAt(0).toUpperCase()}
+                                      </div>
+                                      <div>
+                                        <div className="font-medium text-gray-900">{customerName}</div>
+                                        <div className="text-xs text-gray-500">ID: {order.userId || 'N/A'}</div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg">
+                                      <CreditCard className="w-3.5 h-3.5 text-blue-600" />
+                                      <span className="text-xs font-semibold text-blue-700">{paymentType}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <div className="text-lg font-bold text-gray-900">{currency.format(amount)}</div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex justify-center">
+                                      <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-semibold ${statusStyle.bg} ${statusStyle.text} border border-current border-opacity-20`}>
+                                        {statusStyle.label}
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            });
                           })()}
                         </tbody>
                       </table>
                     </div>
-                    <div className="px-6 py-3 bg-gray-50 border-t border-gray-100">
-                      <div className="flex items-center justify-between text-xs text-gray-600">
-                        <div className="flex items-center gap-2">
-                          <span className="inline-flex items-center gap-1">
-                            <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                            Net Payout = Payment Amount - (Payment Fee + Shipping Fee + Platform Fee)
+                    <div className="px-6 py-4 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-3 text-gray-600">
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 bg-teal-500 rounded-full shadow-sm"></span>
+                            <span className="font-medium">Total Receipts:</span>
+                            <span className="font-bold text-gray-900">{paidOrders.length}</span>
+                          </span>
+                          <span className="text-gray-300">|</span>
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full shadow-sm"></span>
+                            <span className="font-medium">Total Revenue:</span>
+                            <span className="font-bold text-gray-900">
+                              {currency.format(paidOrders.reduce((sum, o) => sum + (Number(o.summary?.subtotal) || 0), 0))}
+                            </span>
                           </span>
                         </div>
-                        <div className="text-gray-500">
-                          Based on {paidOrders.length} paid {paidOrders.length === 1 ? 'order' : 'orders'}
+                        <div className="text-xs text-gray-500">
+                          Last updated: {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </div>
                     </div>
                   </div>
+
+                  {/* Receipt Detail Side Panel */}
+                  {receiptDetailOpen && selectedReceipt && (
+                    <>
+                      {/* Backdrop */}
+                      <div 
+                        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity"
+                        onClick={() => setReceiptDetailOpen(false)}
+                      />
+                      
+                      {/* Side Panel */}
+                      <div className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-50 overflow-y-auto animate-slide-in-right">
+                        {/* Header */}
+                        <div className="sticky top-0 bg-gradient-to-r from-teal-600 to-teal-700 text-white px-6 py-5 shadow-lg z-10">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-xl font-bold">Receipt Details</h3>
+                              <p className="text-sm text-teal-100 mt-1">Order #{selectedReceipt.id}</p>
+                            </div>
+                            <button
+                              onClick={() => setReceiptDetailOpen(false)}
+                              className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition"
+                            >
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 space-y-6">
+                          {/* Total Price Card */}
+                          <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-6 border border-emerald-200 shadow-sm">
+                            <div className="text-sm font-medium text-emerald-700 mb-2">Total Amount</div>
+                            <div className="text-4xl font-bold text-emerald-900">
+                              {currency.format(Number(selectedReceipt.summary?.subtotal) || 0)}
+                            </div>
+                            <div className="mt-3 flex items-center gap-2 text-xs text-emerald-700">
+                              <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                              <span>Paid via {selectedReceipt.feesBreakdown?.paymentMethod || 'N/A'}</span>
+                            </div>
+                          </div>
+
+                          {/* Order Information */}
+                          <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-600">Order ID</span>
+                              <span className="text-sm font-bold text-gray-900">{selectedReceipt.id}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-600">Barcode</span>
+                              <span className="text-sm font-mono text-gray-900">{selectedReceipt.barcode || 'N/A'}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-600">Status</span>
+                              <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
+                                selectedReceipt.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
+                                selectedReceipt.status === 'confirmed' ? 'bg-green-100 text-green-700' :
+                                selectedReceipt.status === 'processing' ? 'bg-blue-100 text-blue-700' :
+                                selectedReceipt.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {selectedReceipt.status?.toUpperCase() || 'PENDING'}
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium text-gray-600">Date & Time</span>
+                              <span className="text-sm text-gray-900">
+                                {new Date(selectedReceipt.createdAt || selectedReceipt.timestamp || '').toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'short',
+                                  day: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Customer Information */}
+                          <div>
+                            <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                              <svg className="w-4 h-4 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                              Customer Details
+                            </h4>
+                            <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
+                              <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                                  {(selectedReceipt.customer?.name || 'U').charAt(0).toUpperCase()}
+                                </div>
+                                <div>
+                                  <div className="font-semibold text-gray-900">{selectedReceipt.customer?.name || 'Unknown Customer'}</div>
+                                  <div className="text-xs text-gray-500">ID: {selectedReceipt.userId || 'N/A'}</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Payment Method */}
+                          <div>
+                            <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                              <CreditCard className="w-4 h-4 text-teal-600" />
+                              Payment Method
+                            </h4>
+                            <div className="bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm">
+                                  <CreditCard className="w-5 h-5 text-white" />
+                                </div>
+                                <div>
+                                  <div className="text-sm font-semibold text-blue-900">
+                                    {selectedReceipt.feesBreakdown?.paymentMethod || 'Not specified'}
+                                  </div>
+                                  <div className="text-xs text-blue-600">Payment gateway processed</div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Products List */}
+                          <div>
+                            <h4 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                              <ShoppingCart className="w-4 h-4 text-teal-600" />
+                              Order Items
+                            </h4>
+                            <div className="space-y-3">
+                              {selectedReceipt.items && Array.isArray(selectedReceipt.items) && selectedReceipt.items.length > 0 ? (
+                                selectedReceipt.items.map((item: any, idx: number) => (
+                                  <div key={idx} className="bg-white border border-gray-200 rounded-xl p-4 hover:shadow-md transition">
+                                    <div className="flex gap-4">
+                                      {/* Product Image */}
+                                      <div className="w-20 h-20 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden shadow-sm">
+                                        {item.image || item.imageUrl ? (
+                                          <img 
+                                            src={item.image || item.imageUrl} 
+                                            alt={item.name || 'Product'} 
+                                            className="w-full h-full object-cover"
+                                            onError={(e) => {
+                                              (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"%3E%3Crect fill="%23f3f4f6" width="80" height="80"/%3E%3Ctext x="50%25" y="50%25" dominant-baseline="middle" text-anchor="middle" font-family="system-ui" font-size="24" fill="%239ca3af"%3E📦%3C/text%3E%3C/svg%3E';
+                                            }}
+                                          />
+                                        ) : (
+                                          <div className="w-full h-full flex items-center justify-center text-3xl">
+                                            📦
+                                          </div>
+                                        )}
+                                      </div>
+                                      
+                                      {/* Product Details */}
+                                      <div className="flex-1 min-w-0">
+                                        <h5 className="font-semibold text-gray-900 text-sm mb-1 truncate">
+                                          {item.name || 'Product'}
+                                        </h5>
+                                        <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
+                                          <span>Qty: {item.quantity || 1}</span>
+                                          <span className="text-gray-300">•</span>
+                                          <span>{currency.format(Number(item.price) || 0)} each</span>
+                                        </div>
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-xs font-medium text-gray-600">Subtotal</span>
+                                          <span className="text-base font-bold text-teal-600">
+                                            {currency.format((Number(item.price) || 0) * (item.quantity || 1))}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 text-center">
+                                  <div className="text-gray-400 mb-2">📦</div>
+                                  <div className="text-sm text-gray-600">
+                                    {selectedReceipt.itemsBrief || 'No item details available'}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Price Breakdown */}
+                          <div className="bg-gray-50 rounded-xl p-4 space-y-2">
+                            <h4 className="text-sm font-bold text-gray-900 mb-3">Price Breakdown</h4>
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-600">Subtotal</span>
+                              <span className="font-semibold text-gray-900">
+                                {currency.format(Number(selectedReceipt.summary?.subtotal) || 0)}
+                              </span>
+                            </div>
+                            {selectedReceipt.summary?.sellerShippingCharge && Number(selectedReceipt.summary.sellerShippingCharge) > 0 && (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600">Shipping Fee</span>
+                                <span className="font-semibold text-gray-900">
+                                  {currency.format(Number(selectedReceipt.summary.sellerShippingCharge))}
+                                </span>
+                              </div>
+                            )}
+                            {selectedReceipt.feesBreakdown?.paymentProcessingFee && Number(selectedReceipt.feesBreakdown.paymentProcessingFee) > 0 && (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600">Payment Fee</span>
+                                <span className="text-red-600 font-semibold">
+                                  -{currency.format(Number(selectedReceipt.feesBreakdown.paymentProcessingFee))}
+                                </span>
+                              </div>
+                            )}
+                            {selectedReceipt.feesBreakdown?.platformFee && Number(selectedReceipt.feesBreakdown.platformFee) > 0 && (
+                              <div className="flex items-center justify-between text-sm">
+                                <span className="text-gray-600">Platform Fee</span>
+                                <span className="text-red-600 font-semibold">
+                                  -{currency.format(Number(selectedReceipt.feesBreakdown.platformFee))}
+                                </span>
+                              </div>
+                            )}
+                            <div className="border-t border-gray-300 pt-2 mt-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-base font-bold text-gray-900">Total</span>
+                                <span className="text-xl font-bold text-teal-600">
+                                  {currency.format(Number(selectedReceipt.summary?.subtotal) || 0)}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Action Buttons */}
+                          <div className="flex gap-3 pt-2">
+                            <button
+                              onClick={() => {
+                                window.print();
+                              }}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-teal-600 to-teal-700 text-white rounded-xl font-semibold hover:from-teal-700 hover:to-teal-800 transition shadow-md hover:shadow-lg"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                              </svg>
+                              Print Receipt
+                            </button>
+                            <button
+                              onClick={() => setReceiptDetailOpen(false)}
+                              className="px-4 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition"
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 
@@ -2580,7 +2908,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                   <div className="absolute inset-0 bg-black/40" onClick={() => setShowTutorial(false)} />
                   <div className="relative z-10 w-[92vw] max-w-xl bg-white rounded-2xl shadow-xl border border-gray-200 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                      <div className="text-sm font-medium text-gray-900">Sales Summary tutorial</div>
+                      <div className="text-sm font-medium text-gray-900">Sales tutorial</div>
                       <button className="text-xs px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50" onClick={() => setShowTutorial(false)}>Close</button>
                     </div>
                     <div className="p-4 space-y-2 text-sm text-gray-700">
@@ -3704,7 +4032,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
   const getPageTitle = () => {
     switch (activeItem) {
       case "dashboard": 
-        return isAdmin ? "Dashboard" : "Sales Summary";
+        return isAdmin ? "Dashboard" : "Sales";
       case "policies":
         return "Terms & Policies";
       case "confirmation": return "Confirmation";

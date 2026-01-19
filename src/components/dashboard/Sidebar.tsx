@@ -50,7 +50,7 @@ const menuItems: MenuItem[] = [
     label: "Dashboard", 
     icon: LayoutDashboard,
     subItems: [
-      { id: "dashboard-summary", label: "Sales by Summary", icon: BarChart3 },
+      { id: "dashboard-summary", label: "By Summary", icon: BarChart3 },
       { id: "dashboard-item", label: "By Item", icon: List },
       { id: "dashboard-category", label: "By Category", icon: FolderTree },
       { id: "dashboard-payment", label: "By Payment Type", icon: CreditCard },
@@ -248,7 +248,7 @@ const Sidebar = ({ activeItem, onItemClick, onLogout }: SidebarProps) => {
             const hasSubItems = item.subItems && item.subItems.length > 0;
             
             const displayLabel = (isSeller && !isAdmin)
-              ? (item.id === 'dashboard' ? 'Sales Summary' : item.id === 'seller-orders' ? 'Orders' : item.id === 'reports' ? 'Report' : item.label)
+              ? (item.id === 'dashboard' ? 'Sales' : item.id === 'seller-orders' ? 'Orders' : item.id === 'reports' ? 'Report' : item.label)
               : item.label;
             
             return (
