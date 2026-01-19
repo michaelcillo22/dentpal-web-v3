@@ -2463,7 +2463,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                               `"${order.id || ''}"`,
                               `"${date}"`,
                               `"${order.customer?.name || 'N/A'}"`,
-                              `"${order.userId || order.customer?.id || 'N/A'}"`,
+                              `"${order.userId || 'N/A'}"`,
                               `"${order.feesBreakdown?.paymentMethod || 'N/A'}"`,
                               (Number(order.summary?.subtotal) || 0).toFixed(2),
                               `"${order.status || 'N/A'}"`
