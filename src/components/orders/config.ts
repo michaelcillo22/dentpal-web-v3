@@ -1,6 +1,6 @@
 import { Order } from '@/types/order';
 
-export type LifecycleStage = 'all' | 'unpaid' | 'confirmed' | 'to-ship' | 'shipping' | 'delivered' | 'failed-delivery' | 'cancellation' | 'return-refund';
+export type LifecycleStage = 'all' | 'unpaid' | 'confirmed' | 'to-ship' | 'shipping' | 'delivered' | 'completed' | 'unfulfilled' | 'return-refund';
 
 export type ToShipStage = 'to-pack' | 'to-arrangement' | 'to-hand-over';
 
@@ -18,10 +18,10 @@ export const mapOrderToStage = (o: Order): LifecycleStage => {
     case 'to_ship': return 'to-ship';
     case 'processing': return 'shipping';
     case 'shipping': return 'shipping';
-    case 'shipped': return 'shipping';
-    case 'completed': return 'delivered';
-    case 'failed-delivery': return 'failed-delivery';
-    case 'cancelled': return 'cancellation';
+    case 'shipped': return 'delivered'; // Shipped orders appear in "Delivered" tab awaiting customer confirmation
+    case 'completed': return 'completed';
+    case 'failed-delivery': return 'unfulfilled';
+    case 'cancelled': return 'unfulfilled';
     case 'return_requested':
     case 'return_approved':
     case 'return_rejected':
@@ -35,14 +35,15 @@ export const mapOrderToStage = (o: Order): LifecycleStage => {
 
 export const SUB_TABS: SubTabConfig[] = [
   { id: 'all', label: 'All', predicate: () => true },
-  { id: 'unpaid', label: 'Unpaid', predicate: (o) => mapOrderToStage(o) === 'unpaid' },
-  { id: 'confirmed', label: 'Confirmed', predicate: (o) => mapOrderToStage(o) === 'confirmed' },
+  // Hidden tabs: unpaid and confirmed - orders go directly to to-ship after payment
+  // { id: 'unpaid', label: 'Unpaid', predicate: (o) => mapOrderToStage(o) === 'unpaid' },
+  // { id: 'confirmed', label: 'Confirmed', predicate: (o) => mapOrderToStage(o) === 'confirmed' },
   { id: 'to-ship', label: 'To Ship', predicate: (o) => mapOrderToStage(o) === 'to-ship' },
   { id: 'shipping', label: 'Shipping', predicate: (o) => mapOrderToStage(o) === 'shipping' },
-  { id: 'delivered', label: 'Delivered', predicate: (o) => mapOrderToStage(o) === 'delivered' },
-  { id: 'failed-delivery', label: 'Failed Delivery', predicate: (o) => o.status === 'failed-delivery' },
-  { id: 'cancellation', label: 'Cancellation', predicate: (o) => o.status === 'cancelled' },
+  { id: 'delivered', label: 'Delivered', predicate: (o) => o.status === 'shipped' }, // Shipped orders awaiting customer confirmation
+  { id: 'completed', label: 'Completed', predicate: (o) => o.status === 'completed' },
   { id: 'return-refund', label: 'Return or Refund', predicate: (o) => ['return_requested', 'return_approved', 'return_rejected', 'returned', 'refunded', 'return_refund'].includes(o.status) },
+  { id: 'unfulfilled', label: 'Failed Transactions', predicate: (o) => o.status === 'cancelled' || o.status === 'failed-delivery' },
 ];
 
 export const TO_SHIP_SUB_TABS: { id: ToShipStage; label: string }[] = [

@@ -3,13 +3,14 @@ import { Order } from '@/types/order';
 import { Search, RefreshCcw, ShoppingCart } from 'lucide-react';
 import { SUB_TABS, mapOrderToStage, LifecycleStage, TO_SHIP_SUB_TABS, ToShipStage } from './config';
 import AllOrdersView from './views/AllOrdersView';
-import UnpaidOrdersView from './views/UnpaidOrdersView';
-import ConfirmedOrdersView from './views/ConfirmedOrdersView';
+// Hidden views - orders go directly to to-ship after payment
+// import UnpaidOrdersView from './views/UnpaidOrdersView';
+// import ConfirmedOrdersView from './views/ConfirmedOrdersView';
 import ToShipOrdersView from './views/ToShipOrdersView';
 import ShippingOrdersView from './views/ShippingOrdersView';
 import DeliveredOrdersView from './views/DeliveredOrdersView';
-import FailedDeliveryOrdersView from './views/FailedDeliveryOrdersView';
-import CancellationOrdersView from './views/CancellationOrdersView';
+import CompletedOrdersView from './views/CompletedOrdersView';
+import UnfulfilledOrdersView from './views/UnfulfilledOrdersView';
 import ReturnRefundOrdersView from './views/ReturnRefundOrdersView';
 import OrdersService from '@/services/orders';
 import { useAuth } from '@/hooks/useAuth';
@@ -30,13 +31,14 @@ interface OrderTabProps {
 
 const viewMap: Record<LifecycleStage, React.FC<{ orders: Order[]; onSelectOrder?: (o: Order) => void }>> = {
   'all': AllOrdersView,
-  'unpaid': UnpaidOrdersView,
-  'confirmed': ConfirmedOrdersView,
+  // Hidden views - these statuses are skipped, orders go directly to to-ship
+  'unpaid': AllOrdersView,  // Fallback to AllOrdersView (should not be accessed)
+  'confirmed': AllOrdersView,  // Fallback to AllOrdersView (should not be accessed)
   'to-ship': ToShipOrdersView,
   'shipping': ShippingOrdersView,
   'delivered': DeliveredOrdersView,
-  'failed-delivery': FailedDeliveryOrdersView,
-  'cancellation': CancellationOrdersView,
+  'completed': CompletedOrdersView,
+  'unfulfilled': UnfulfilledOrdersView,
   'return-refund': ReturnRefundOrdersView,
 };
 
@@ -181,7 +183,17 @@ export const OrderTab: React.FC<OrderTabProps> = ({
 
   // Precompute counts per sub tab for badges (now respects date range)
   const countsBySubTab = useMemo(() => {
-    const base: Record<LifecycleStage, number> = { 'all': 0, 'unpaid': 0, 'confirmed': 0, 'to-ship': 0, 'shipping': 0, 'delivered': 0, 'failed-delivery': 0, 'cancellation': 0, 'return-refund': 0 };
+    const base: Record<LifecycleStage, number> = { 
+      'all': 0, 
+      'unpaid': 0, 
+      'confirmed': 0, 
+      'to-ship': 0, 
+      'shipping': 0, 
+      'delivered': 0, 
+      'completed': 0,
+      'unfulfilled': 0,
+      'return-refund': 0 
+    };
     dateFilteredOrders.forEach(o => { const stage = mapOrderToStage(o); base[stage] += 1; base.all += 1; });
     return base;
   }, [dateFilteredOrders]);
@@ -671,14 +683,6 @@ export const OrderTab: React.FC<OrderTabProps> = ({
             shippingLoading={shippingLoading}
           />
         )
-        : activeSubTab === 'confirmed'
-        ? (
-          <ConfirmedOrdersView
-            orders={pagedOrders}
-            onSelectOrder={handleSelectOrder}
-            onMoveToToShip={handleMoveToToShip}
-          />
-        )
         : (!loading && pagedOrders.length === 0 && activeSubTab !== 'return-refund'
           ? (
             <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
@@ -839,9 +843,29 @@ export const OrderTab: React.FC<OrderTabProps> = ({
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button className="text-xs px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50" onClick={() => copyToClipboard(selectedOrder.id,'id')}>{copied==='id' ? 'Copied' : 'Copy ID'}</button>
-                    <button className="text-xs px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50" onClick={() => copyToClipboard(selectedOrder.barcode,'barcode')}>{copied==='barcode' ? 'Copied' : 'Copy barcode'}</button>
-                    <button className="text-xs px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50" onClick={() => setDetailsOpen(false)}>Close</button>
+                    <button
+                      className="text-xs px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50"
+                      onClick={async () => {
+                        try {
+                          if (activeSubTab === 'to-ship' && selectedOrder) {
+                            await handleMoveToArrangement(selectedOrder);
+                            setToShipSubTab('to-arrangement');
+                          }
+                          printSummary(selectedOrder);
+                        } catch (e) {
+                          console.error(e);
+                        }
+                      }}
+                    >
+                      Print
+                    </button>
+                    <button 
+                      className="w-8 h-8 flex items-center justify-center rounded-md hover:bg-red-50 text-red-600 border border-red-200" 
+                      onClick={() => setDetailsOpen(false)}
+                      aria-label="Close"
+                    >
+                      ✕
+                    </button>
                   </div>
                 </div>
               </div>
@@ -857,7 +881,17 @@ export const OrderTab: React.FC<OrderTabProps> = ({
                     <div>
                       <div className="text-xs text-gray-500">Buyer</div>
                       <div className="text-sm font-medium text-gray-900">{selectedOrder.customer.name || '—'}</div>
-                      <div className="text-xs text-gray-500">{selectedOrder.customer.contact || ''}</div>
+                      <div className="text-xs text-gray-500">
+                        {(() => {
+                          const parts: string[] = [];
+                          if (selectedOrder.shippingInfo?.addressLine1) parts.push(selectedOrder.shippingInfo.addressLine1);
+                          if (selectedOrder.shippingInfo?.addressLine2) parts.push(selectedOrder.shippingInfo.addressLine2);
+                          if (selectedOrder.shippingInfo?.city) parts.push(selectedOrder.shippingInfo.city);
+                          if (selectedOrder.shippingInfo?.state) parts.push(selectedOrder.shippingInfo.state);
+                          if (selectedOrder.shippingInfo?.postalCode) parts.push(selectedOrder.shippingInfo.postalCode);
+                          return parts.length > 0 ? parts.join(', ') : '—';
+                        })()}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -900,39 +934,13 @@ export const OrderTab: React.FC<OrderTabProps> = ({
                   </div>
                 </div>
 
-                {/* Package above Total Amount */}
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div className="text-sm text-gray-600">
-                    <div className="font-medium">Package</div>
-                    <div className="text-sm text-gray-500 mt-1">{selectedOrder.package.size}</div>
-                  </div>
+                {/* Total Amount - removed Package section */}
+                <div className="flex justify-end">
                   <div className="text-right">
                     <div className="text-xs text-gray-500">Total Amount</div>
                     <div className="text-lg font-semibold">{selectedOrder.currency || 'PHP'} {selectedOrder.total != null ? selectedOrder.total : ''}</div>
                   </div>
                 </div>
-              </div>
-
-              {/* Footer */}
-              <div className="px-5 pb-5 flex items-center justify-end gap-2 border-t border-gray-100 pt-4">
-                <button
-                  className="text-xs px-3 py-1.5 rounded-md border border-gray-200 hover:bg-gray-50"
-                  onClick={async () => {
-                    try {
-                      if (activeSubTab === 'to-ship' && selectedOrder) {
-                        await handleMoveToArrangement(selectedOrder);
-                        setToShipSubTab('to-arrangement');
-                      }
-                      printSummary(selectedOrder);
-                      setDetailsOpen(false);
-                    } catch (e) {
-                      console.error(e);
-                    }
-                  }}
-                >
-                  Print
-                </button>
-                <button className="text-xs px-3 py-1.5 rounded-md border border-teal-600 text-teal-700 hover:bg-teal-50" onClick={() => setDetailsOpen(false)}>Close</button>
               </div>
             </div>
           </div>

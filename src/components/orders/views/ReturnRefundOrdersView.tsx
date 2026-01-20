@@ -322,46 +322,6 @@ const ReturnRefundOrdersView: React.FC<ViewProps> = ({ orders, onSelectOrder }) 
         </div>
       </div>
 
-      {/* Stats Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 px-6">
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-blue-600 font-medium">Pending Review</p>
-              <p className="text-2xl font-bold text-blue-700">{counts.pending}</p>
-            </div>
-            <Clock className="w-8 h-8 text-blue-500 opacity-50" />
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-purple-600 font-medium">Approved</p>
-              <p className="text-2xl font-bold text-purple-700">{counts.approved}</p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-purple-500 opacity-50" />
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-xl p-4 border border-red-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-red-600 font-medium">Rejected</p>
-              <p className="text-2xl font-bold text-red-700">{counts.rejected}</p>
-            </div>
-            <XCircle className="w-8 h-8 text-red-500 opacity-50" />
-          </div>
-        </div>
-        <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs text-green-600 font-medium">Completed</p>
-              <p className="text-2xl font-bold text-green-700">{counts.completed}</p>
-            </div>
-            <CheckCircle className="w-8 h-8 text-green-500 opacity-50" />
-          </div>
-        </div>
-      </div>
-
       {/* Request Cards */}
       <div className="space-y-4 px-6 pb-6">
         {filteredData.length === 0 ? (

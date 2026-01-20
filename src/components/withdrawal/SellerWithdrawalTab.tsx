@@ -177,6 +177,10 @@ const SellerWithdrawalTab = ({
   // Filtered withdrawal requests based on status filter
   const filteredRequests = useMemo(() => {
     if (statusFilter === "all") return withdrawalRequests;
+    // Show both processing and approved requests when processing filter is selected
+    if (statusFilter === "processing") {
+      return withdrawalRequests.filter((r) => r.status === "processing" || r.status === "approved");
+    }
     return withdrawalRequests.filter((r) => r.status === statusFilter);
   }, [withdrawalRequests, statusFilter]);
 
@@ -353,27 +357,9 @@ const SellerWithdrawalTab = ({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Withdrawal</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            View your earnings summary and request payouts (completed orders only)
-          </p>
-        </div>
-        <button
-          onClick={() => setShowRequestModal(true)}
-          disabled={availableBalance < 100}
-          className="flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Banknote className="w-4 h-4" />
-          Request Payout
-        </button>
-      </div>
-
-      {/* Info Notice */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <div className="flex items-start gap-3">
+      {/* Withdrawal Policy and Request Payout Button in Single Row */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-center justify-between gap-4">
+        <div className="flex items-start gap-3 flex-1">
           <div className="w-5 h-5 text-blue-600 mt-0.5">
             ℹ️
           </div>
@@ -387,10 +373,18 @@ const SellerWithdrawalTab = ({
             </p>
           </div>
         </div>
+        <button
+          onClick={() => setShowRequestModal(true)}
+          disabled={availableBalance < 100}
+          className="hidden flex items-center gap-2 px-4 py-2.5 bg-teal-600 hover:bg-teal-700 text-white text-sm font-medium rounded-lg shadow-sm transition disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+        >
+          <Banknote className="w-4 h-4" />
+          Request Payout
+        </button>
       </div>
 
       {/* Financial Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Gross Sales */}
         <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
           <div className="flex items-center gap-3">
@@ -407,22 +401,6 @@ const SellerWithdrawalTab = ({
           <div className="mt-2 text-xs text-gray-500">
             Total subtotal from completed orders
           </div>
-        </div>
-
-        {/* Net Payout */}
-        <div className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-              <Wallet className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <div className="text-sm font-medium text-gray-500">Net Payout</div>
-              <div className="text-xl font-bold text-green-600">
-                {currency.format(financialMetrics.totalNetPayout)}
-              </div>
-            </div>
-          </div>
-          <div className="mt-2 text-xs text-gray-500">From completed orders only</div>
         </div>
 
         {/* Payment Processing Fee */}
@@ -645,12 +623,15 @@ const SellerWithdrawalTab = ({
             {[
               { key: "all", label: "All", color: "gray" },
               { key: "pending", label: "Pending", color: "yellow" },
-              { key: "approved", label: "Approved", color: "blue" },
               { key: "processing", label: "Processing", color: "indigo" },
               { key: "completed", label: "Completed", color: "green" },
-              { key: "rejected", label: "Rejected", color: "red" },
             ].map((tab) => {
-              const count = statusCounts[tab.key as keyof typeof statusCounts];
+              // Combine approved with processing count
+              let count = statusCounts[tab.key as keyof typeof statusCounts];
+              if (tab.key === "processing") {
+                count = (statusCounts.processing || 0) + (statusCounts.approved || 0);
+              }
+              
               const isActive = statusFilter === tab.key;
               return (
                 <button
@@ -660,14 +641,10 @@ const SellerWithdrawalTab = ({
                     isActive
                       ? tab.color === "yellow"
                         ? "bg-yellow-100 text-yellow-800"
-                        : tab.color === "blue"
-                        ? "bg-blue-100 text-blue-800"
                         : tab.color === "indigo"
                         ? "bg-indigo-100 text-indigo-800"
                         : tab.color === "green"
                         ? "bg-green-100 text-green-800"
-                        : tab.color === "red"
-                        ? "bg-red-100 text-red-800"
                         : "bg-gray-200 text-gray-800"
                       : "bg-white text-gray-600 hover:bg-gray-100 border border-gray-200"
                   }`}

@@ -120,6 +120,15 @@ export interface Order {
   };
   // NEW: Shipping information from JRS Express
   shippingInfo?: {
+    addressId?: string;
+    fullName?: string;
+    addressLine1?: string;
+    addressLine2?: string | null;
+    city?: string;
+    state?: string;
+    postalCode?: string;
+    country?: string;
+    phoneNumber?: string;
     jrs?: {
       trackingId?: string;
       trackingNumber?: string;

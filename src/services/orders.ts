@@ -201,11 +201,25 @@ const mapDocToOrder = (id: string, data: any): Order => {
     fsRaw === 'to-arrangement' ? 'to-arrangement' :
     fsRaw === 'to-hand-over' ? 'to-hand-over' : 'to-pack';
 
+  // Format timestamp as "YYYY-MM-DD HH:MM AM/PM" for display
+  const formatTimestamp = (ms: number): string => {
+    const date = new Date(ms);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12; // Convert to 12-hour format
+    const hoursStr = String(hours).padStart(2, '0');
+    return `${year}-${month}-${day} ${hoursStr}:${minutes} ${ampm}`;
+  };
+
   return {
     id,
     orderCount: Number(data.summary?.totalItems || itemsRaw.length || 0),
     barcode: tracking,
-    timestamp: dateOnly,
+    timestamp: formatTimestamp(createdAtMs),
     createdAt: new Date(createdAtMs).toISOString(),
     customer: {
       name: String((data.shippingInfo?.fullName) || data.customerName || 'Unknown Customer'),
@@ -287,9 +301,18 @@ const mapDocToOrder = (id: string, data: any): Order => {
         return undefined;
       })(),
     } : undefined,
-    // NEW: Map JRS shipping information
-    shippingInfo: data.shippingInfo?.jrs ? {
-      jrs: {
+    // NEW: Map JRS shipping information and address
+    shippingInfo: data.shippingInfo ? {
+      addressId: data.shippingInfo.addressId ? String(data.shippingInfo.addressId) : undefined,
+      fullName: data.shippingInfo.fullName ? String(data.shippingInfo.fullName) : undefined,
+      addressLine1: data.shippingInfo.addressLine1 ? String(data.shippingInfo.addressLine1) : undefined,
+      addressLine2: data.shippingInfo.addressLine2 ? String(data.shippingInfo.addressLine2) : undefined,
+      city: data.shippingInfo.city ? String(data.shippingInfo.city) : undefined,
+      state: data.shippingInfo.state ? String(data.shippingInfo.state) : undefined,
+      postalCode: data.shippingInfo.postalCode ? String(data.shippingInfo.postalCode) : undefined,
+      country: data.shippingInfo.country ? String(data.shippingInfo.country) : undefined,
+      phoneNumber: data.shippingInfo.phoneNumber ? String(data.shippingInfo.phoneNumber) : undefined,
+      jrs: data.shippingInfo.jrs ? {
         trackingId: data.shippingInfo.jrs.trackingId ? String(data.shippingInfo.jrs.trackingId) : undefined,
         trackingNumber: data.shippingInfo.jrs.trackingNumber ? String(data.shippingInfo.jrs.trackingNumber) : undefined,
         status: data.shippingInfo.jrs.status ? String(data.shippingInfo.jrs.status) : undefined,
@@ -304,7 +327,7 @@ const mapDocToOrder = (id: string, data: any): Order => {
         })(),
         pickupSchedule: data.shippingInfo.jrs.pickupSchedule ? String(data.shippingInfo.jrs.pickupSchedule) : undefined,
         courier: data.shippingInfo.jrs.courier ? String(data.shippingInfo.jrs.courier) : undefined,
-      }
+      } : undefined
     } : undefined,
     // NEW: Map PayMongo payment information
     paymongo: data.paymongo ? {

@@ -22,6 +22,12 @@ const buildInvoiceHTML = async (order: Order) => {
   const total = order.total != null ? order.total : '';
   const hasItems = Array.isArray(order.items) && order.items.length > 0;
   
+  // Format status for display
+  const formattedStatus = order.status
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+  
   // Load and convert logo to base64
   let logoDataUrl = '';
   try {
@@ -122,7 +128,7 @@ const buildInvoiceHTML = async (order: Order) => {
       </div>
       <div>
         <div class="label">Status</div>
-        <div class="badge">${order.status}</div>
+        <div class="badge">${formattedStatus}</div>
         <div class="label" style="margin-top:8px">Tracking ID</div>
         <div class="value" style="margin-top:4px;">${trackingId}</div>
       </div>
@@ -199,6 +205,14 @@ const moveToArrangement = (order: Order, onMove?: (order: Order) => void) => {
   }
 };
 
+// Helper function to format status: replace underscores with spaces and capitalize each word
+const formatStatus = (status: string): string => {
+  return status
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
 const OrderRow: React.FC<OrderRowProps> = ({ order, onDetails, onClick, isToShip = false, onMoveToArrangement, onMoveToHandOver, onConfirmHandover, onMoveToPack, onMoveToShipping, isShippingLoading = false }) => {
   const [open, setOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -234,22 +248,28 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onDetails, onClick, isToShip
   }, [menuOpen, itemsOpen]);
 
     return (
-    <div className="w-full bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+    <div 
+      className="w-full bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+      onClick={handleDetails}
+    >
       <div className="flex flex-col md:flex-row md:items-center gap-4">
         <div className="flex-1 flex items-center gap-6">
-          {/* Date (no time) */}
-          <div className="w-32 text-sm font-medium text-gray-700">{order.timestamp}</div>
+          {/* Date and time on separate lines */}
+          <div className="w-32">
+            <div className="text-sm font-medium text-gray-700">{order.timestamp?.split(' ')[0]}</div>
+            <div className="text-xs text-gray-500">{order.timestamp?.split(' ').slice(1).join(' ')}</div>
+          </div>
           {/* Product thumbnail */}
           {order.imageUrl ? (
             <img src={order.imageUrl} alt="Product" className="w-12 h-12 rounded-md object-cover border border-gray-200" />
           ) : (
             <div className="w-12 h-12 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center text-[10px] text-gray-400">No Image</div>
           )}
-          {/* Items brief and total */}
+          {/* Order ID and items */}
           <div className="flex-1 min-w-[200px]" data-items-menu>
             <div className="flex items-center gap-2">
-              <p className="font-medium text-gray-900">{order.itemsBrief || `${order.orderCount} item(s)`}</p>
-              {Array.isArray(order.items) && order.items.length >= 2 && (
+              <p className="font-medium text-gray-900">Order #{order.id}</p>
+              {Array.isArray(order.items) && order.items.length >= 1 && (
                 <button
                   type="button"
                   className="text-[11px] px-2 py-0.5 border border-gray-200 rounded-md hover:bg-gray-50 text-gray-700 flex items-center gap-1"
@@ -257,12 +277,12 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onDetails, onClick, isToShip
                   title="Show items"
                 >
                   {itemsOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  Items
+                  {order.items.length} {order.items.length === 1 ? 'item' : 'items'}
                 </button>
               )}
             </div>
             {/* Expanded items inline with animation */}
-            {itemsOpen && Array.isArray(order.items) && order.items.length >= 2 && (
+            {itemsOpen && Array.isArray(order.items) && order.items.length >= 1 && (
               <div className="mt-2 space-y-2 animate-in slide-in-from-top-2 duration-300">
                 {order.items!.map((it, idx) => (
                   <div key={idx} className="flex items-center gap-3 p-2 bg-gray-50 rounded-md">
@@ -289,17 +309,12 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onDetails, onClick, isToShip
             )}
           </div>
           {/* Status */}
-          <div className="text-xs font-medium capitalize px-2 py-1 rounded bg-gray-100 text-gray-700">{order.status}</div>
-          {/* Size and contact - hide contact on To Arrangement stage */}
-          <div className="hidden lg:block text-xs text-gray-500">
-            {order.package.size}
-            {order.fulfillmentStage === 'to-arrangement' ? null : <> / {order.customer.contact || '—'}</>}
-          </div>
+          <div className="text-xs font-medium px-2 py-1 rounded bg-gray-100 text-gray-700">{formatStatus(order.status)}</div>
         </div>
         {/* Conditional rendering based on isToShip and fulfillmentStage */}
         {isToShip ? (
           order.fulfillmentStage === 'to-arrangement' ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
                 className="text-xs px-3 py-1 border border-gray-400 text-gray-600 rounded-md font-medium hover:bg-gray-50"
@@ -316,7 +331,7 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onDetails, onClick, isToShip
               </button>
             </div>
           ) : order.fulfillmentStage === 'to-hand-over' ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
                 className="text-xs px-3 py-1 border border-gray-400 text-gray-600 rounded-md font-medium hover:bg-gray-50"
@@ -335,8 +350,8 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onDetails, onClick, isToShip
               </button>
             </div>
           ) : (
-            // Default (to-pack): show move to arrangement button + details dropdown
-            <div className="flex items-center gap-2">
+            // Default (to-pack): show move to arrangement button + actions dropdown
+            <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
                 className="text-xs px-3 py-1 border border-blue-600 text-blue-700 rounded-md font-medium hover:bg-blue-50"
@@ -347,17 +362,14 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onDetails, onClick, isToShip
               <div className="relative" data-actions-menu>
                 <button
                   type="button"
-                  className="text-xs px-3 py-1 border border-teal-600 text-teal-700 rounded-md font-medium hover:bg-teal-50 flex items-center gap-1"
+                  className="text-xs px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 shadow-sm flex items-center gap-1"
                   onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
-                  title="Options"
+                  title="Invoice and export options"
                 >
-                  Details <ChevronDown className="w-3 h-3" />
+                  Actions <ChevronDown className="w-3 h-3" />
                 </button>
                 {menuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-10">
-                    <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => { setMenuOpen(false); handleDetails(); }}>
-                      <Eye className="w-4 h-4" /> Details
-                    </button>
                     <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => { setMenuOpen(false); printInvoice(order); }}>
                       <Printer className="w-4 h-4" /> Print invoice
                     </button>
@@ -373,35 +385,30 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onDetails, onClick, isToShip
             </div>
           )
         ) : (
-          // Original separate Actions and Details for other tabs
-          <>
-            {/* Actions: compact dropdown with icons */}
-            <div className="relative" data-actions-menu>
-              <button
-                type="button"
-                className="text-xs px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 shadow-sm flex items-center gap-1"
-                onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
-                title="Invoice and export options"
-              >
-                Actions <ChevronDown className="w-3 h-3" />
-              </button>
-              {menuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-10">
-                  <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => { setMenuOpen(false); printInvoice(order); }}>
-                    <Printer className="w-4 h-4" /> Print invoice
-                  </button>
-                  <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => { setMenuOpen(false); exportCSV(order); }}>
-                    <Download className="w-4 h-4" /> Export CSV
-                  </button>
-                  <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => { setMenuOpen(false); exportPDF(order); }}>
-                    <FileText className="w-4 h-4" /> Export PDF
-                  </button>
-                </div>
-              )}
-            </div>
-            {/* Details */}
-            <button type="button" onClick={handleDetails} className="text-xs px-3 py-1 border border-teal-600 text-teal-700 rounded-md font-medium hover:bg-teal-50">Details</button>
-          </>
+          // For other tabs, only show Actions dropdown (no Details button)
+          <div className="relative" data-actions-menu onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="text-xs px-3 py-1 border border-gray-200 rounded-md hover:bg-gray-50 shadow-sm flex items-center gap-1"
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+              title="Invoice and export options"
+            >
+              Actions <ChevronDown className="w-3 h-3" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-10">
+                <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => { setMenuOpen(false); printInvoice(order); }}>
+                  <Printer className="w-4 h-4" /> Print invoice
+                </button>
+                <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => { setMenuOpen(false); exportCSV(order); }}>
+                  <Download className="w-4 h-4" /> Export CSV
+                </button>
+                <button type="button" className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2" onClick={() => { setMenuOpen(false); exportPDF(order); }}>
+                  <FileText className="w-4 h-4" /> Export PDF
+                </button>
+              </div>
+            )}
+          </div>
         )}
       </div>
 
@@ -419,7 +426,7 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onDetails, onClick, isToShip
               </div>
               <div className="flex flex-col items-end gap-2">
                 {/* Keep a compact status chip visible in the header, but remove status list inside the body */}
-                <div className="text-xs font-medium capitalize px-3 py-1 rounded bg-teal-50 text-teal-700">{order.status}</div>
+                <div className="text-xs font-medium px-3 py-1 rounded bg-teal-50 text-teal-700">{formatStatus(order.status)}</div>
                 <button className="text-xs px-3 py-1 rounded border border-gray-200 hover:bg-gray-50" onClick={() => setOpen(false)}>Close</button>
               </div>
             </div>
