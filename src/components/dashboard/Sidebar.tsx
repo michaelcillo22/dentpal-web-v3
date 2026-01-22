@@ -70,7 +70,6 @@ const menuItems: MenuItem[] = [
       { id: "inventory-all", label: "All", icon: List },
       { id: "inventory-history", label: "History", icon: History },
       { id: "stock-adjustment", label: "Stock Adjustment", icon: Edit },
-      { id: "price-management", label: "Price Management", icon: CreditCard }
     ]
   },
   { 
@@ -121,7 +120,7 @@ const Sidebar = ({ activeItem, onItemClick, onLogout }: SidebarProps) => {
     'inventory-history': 'inventory',
     'inventory-control': 'inventory',
     'stock-adjustment': 'inventory',
-    'price-management': 'add-product',
+    // 'price-management': 'add-product',
     items: 'add-product',
     'items-all': 'add-product',
     'items-list': 'add-product',
@@ -162,7 +161,7 @@ const Sidebar = ({ activeItem, onItemClick, onLogout }: SidebarProps) => {
           if (item.id === 'chats' && isAdmin) return false; // Hide chats for admin
           if (item.id === 'confirmation' && isAdmin) return false; // Hide confirmation for admin
           if (item.id === 'reports' && isAdmin) return false; // Hide reports for admin
-          if (isAdmin && ['seller-orders','inventory','inventory-control','stock-adjustment','price-management','items','sub-accounts'].includes(item.id)) return false;
+          if (isAdmin && ['seller-orders','inventory','inventory-control','stock-adjustment','items','sub-accounts'].includes(item.id)) return false;
           const key = permissionByMenuId[item.id];
 
           if (isSubAccount) {
