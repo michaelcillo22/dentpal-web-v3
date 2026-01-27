@@ -59,6 +59,10 @@ const StockAdjustment: React.FC = () => {
 	    }
 	    return { variationId, newStock };
 	  });
+	if (adjustments.some(a => a.newStock < 0)) {
+	  setModalError('Adjustment would create negative stock.');
+	  return;
+	}
 	if (adjustments.length === 0) {
 	  setModalError('No stock adjustments entered.');
 	  return;
