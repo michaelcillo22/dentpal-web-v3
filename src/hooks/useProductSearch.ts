@@ -9,6 +9,8 @@ export default function useProductSearch(uid: string | undefined) {
 
   const searchProducts = async (search: string) => {
     if (!uid) {
+      setResults([]);
+      setLoading(false);
       setError('User not authenticated');
       return;
     }
