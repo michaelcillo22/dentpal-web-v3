@@ -9,6 +9,9 @@ import { logStockAdjustment } from '../../../services/logAdjustment';
 
 const StockAdjustment: React.FC = () => {
 	const { uid, role } = useAuth();
+	// Try to get displayName from auth user if available
+	// (Assume useAuth could be extended to provide displayName in future)
+	// For now, fallback to uid if no name
   const [search, setSearch] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
@@ -45,7 +48,14 @@ const StockAdjustment: React.FC = () => {
 	}
 	// Prepare adjustments array for batch update with correct logic
 	const adjustments = Object.entries(variationAdjustments)
-	  .filter(([_, val]) => typeof val === 'number')
+	  .filter(([variationId, val]) => {
+	    // Only include selected variations
+	    if (!selectedVariations[variationId]) return false;
+	    // For add/remove, ignore zero values
+	    if ((reason === 'Receive Items' || reason === 'Loss/Damage') && (!val || val === 0)) return false;
+	    // For Inventory Count, allow zero (explicit count)
+	    return typeof val === 'number';
+	  })
 	  .map(([variationId, inputValue]) => {
 	    const variation = variations.find(v => v.id === variationId);
 	    const currentStock = variation?.stock ?? 0;
@@ -82,12 +92,15 @@ const StockAdjustment: React.FC = () => {
 		const results = await Promise.allSettled(
 			adjustments.map(async adj => {
 				const variation = variations.find(v => v.id === adj.variationId);
+				// Fallback logic for sellerId and userName
+				const sellerId = selectedProduct.sellerId || selectedProduct.sellerID || uid || '';
+				const userName = selectedProduct.userName || selectedProduct.sellerName || selectedProduct.sellerName || uid || '';
 				await logStockAdjustment({
 					productId: selectedProduct.id || '',
 					productName: selectedProduct.product || selectedProduct.name || '',
-					sellerId: selectedProduct.sellerId || '',
+					sellerId,
 					userId: uid || '',
-					userName: selectedProduct.userName || selectedProduct.sellerName || '',
+					userName,
 					variationId: variation?.id || '',
 					variationName: variation?.name || '',
 					beforeStock: variation?.stock ?? 0,

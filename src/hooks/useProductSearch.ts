@@ -55,12 +55,17 @@ export default function useProductSearch(uid: string | undefined) {
         const logsRef = collection(db, `Product/${doc.id}/Logs`);
         const logsSnap = await getCountFromServer(logsRef);
         const logCount = logsSnap.data().count || 0;
+        // Try to get sellerId and userName/sellerName from product data
+        const sellerId = data.sellerId || data.sellerID || data.userId || data.uid || '';
+        const sellerName = data.sellerName || data.userName || data.displayName || '';
         filtered.push({
           id: doc.id,
           product: productName,
           stock: totalStock,
           adjustNo: logCount,
           imageUrl: data.imageURL || data.imageUrl || undefined,
+          sellerId,
+          sellerName,
         });
       }
       setResults(filtered);

@@ -21,7 +21,15 @@ const History: React.FC = () => {
 				row.variationName?.toLowerCase().includes(search.toLowerCase()) ||
 				row.reason?.toLowerCase().includes(search.toLowerCase()) ||
 				row.modifiedByName?.toLowerCase().includes(search.toLowerCase());
-			const logDate = row.timestamp ? new Date(row.timestamp) : null;
+			// Use timestampRaw for reliable date filtering
+			let logDate: Date | null = null;
+			if (row.timestampRaw) {
+				if (typeof row.timestampRaw === 'number') {
+					logDate = new Date(row.timestampRaw);
+				} else if (typeof row.timestampRaw === 'string') {
+					logDate = new Date(row.timestampRaw);
+				}
+			}
 			const inDateRange =
 				(!dateRange.start && !dateRange.end) ||
 				(logDate && dateRange.start && dateRange.end &&
@@ -33,7 +41,7 @@ const History: React.FC = () => {
 	function formatTimestamp(ts: string): string {
 		if (!ts) return '';
 		const d = new Date(ts);
-		if (isNaN(d.getTime())) return ts;
+		if (isNaN(d.getTime())) return String(ts);
 		return d.toLocaleString(undefined, {
 			year: 'numeric',
 			month: 'numeric',
@@ -81,7 +89,7 @@ const History: React.FC = () => {
 									className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer group"
 									onClick={() => { setSelectedLog(row); setSheetOpen(true); }}
 								>
-									<td className="px-5 py-3">{formatTimestamp(row.timestamp)}</td>
+									<td className="px-5 py-3">{formatTimestamp(row.timestampRaw)}</td>
 									<td className="px-5 py-3">{row.adjustment > 0 ? `+${row.adjustment}` : row.adjustment}</td>
 									<td className="px-5 py-3">{row.modifiedByName}</td>
 									<td className="px-5 py-3">{row.productName}{row.variationName ? ` (${row.variationName})` : ''}</td>
@@ -103,7 +111,7 @@ const History: React.FC = () => {
 						<div style={{ padding: 32, paddingTop: 24, display: 'flex', flexDirection: 'column', gap: 18 }}>
 							<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 								<span style={{ fontWeight: 600, color: '#6b7280', minWidth: 120 }}>Timestamp:</span>
-								<span style={{ fontSize: 16, color: '#111827' }}>{formatTimestamp(selectedLog.timestamp)}</span>
+								<span style={{ fontSize: 16, color: '#111827' }}>{formatTimestamp(selectedLog.timestampRaw)}</span>
 							</div>
 							<div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
 								<span style={{ fontWeight: 600, color: '#6b7280', minWidth: 120 }}>Action:</span>
