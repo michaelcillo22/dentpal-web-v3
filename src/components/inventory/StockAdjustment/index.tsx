@@ -67,10 +67,20 @@ const StockAdjustment: React.FC = () => {
 	  setModalError('No stock adjustments entered.');
 	  return;
 	}
-	batchAdjustVariationStock(selectedProduct.id, adjustments)
-		.then(async () => {
-			// Log each adjustment
-			for (const adj of adjustments) {
+	(async () => {
+		try {
+			await batchAdjustVariationStock(selectedProduct.id, adjustments);
+		} catch (err: any) {
+			setModalError('Failed to update stock: ' + (err?.message || 'Unknown error'));
+			return;
+		}
+
+		setModalOpen(false);
+		setNotes('');
+		setVariationAdjustments({});
+
+		const results = await Promise.allSettled(
+			adjustments.map(async adj => {
 				const variation = variations.find(v => v.id === adj.variationId);
 				await logStockAdjustment({
 					productId: selectedProduct.id || '',
@@ -86,14 +96,12 @@ const StockAdjustment: React.FC = () => {
 					reason: notes || '',
 					adjustment: adj.newStock - (variation?.stock ?? 0)
 				});
-			}
-			setModalOpen(false);
-			setNotes('');
-			setVariationAdjustments({});
-		})
-		.catch(err => {
-			setModalError('Failed to update stock: ' + (err?.message || 'Unknown error'));
-		});
+			})
+		);
+		if (results.some(r => r.status === 'rejected')) {
+			// optional: surface a non-blocking warning/toast
+		}
+	})();
   };
 
   return (
