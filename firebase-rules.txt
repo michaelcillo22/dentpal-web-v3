@@ -1,0 +1,348 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+    
+    // Check if user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // Check if user is accessing their own data
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Check if user is admin
+    function isAdmin() {
+      return isSignedIn() && 
+             request.auth.token.role == 'admin';
+    }
+    
+    // Check if user is customer support
+    function isCSR() {
+      return isSignedIn() && 
+             (request.auth.token.role == 'csr' || 
+              request.auth.token.role == 'customer_support' ||
+              isAdmin());
+    }
+    
+    // Check if user is a seller
+    function isSeller() {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/Seller/$(request.auth.uid));
+    }
+    
+    // Check if user owns the seller account
+    function isSellerOwner(sellerId) {
+      return isSignedIn() && request.auth.uid == sellerId;
+    }
+    
+    // Validate required fields exist and are not empty
+    function hasValidFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+    
+    // ============================================
+    // USER COLLECTION
+    // ============================================
+    match /User/{userId} {
+      // Allow read if user owns the document or is admin/CSR
+      allow read: if isOwner(userId) || isAdmin() || isCSR();
+      
+      // Allow create only for the user themselves (during signup)
+      allow create: if isOwner(userId) && 
+                      hasValidFields(['email', 'firstName', 'lastName']);
+      
+      // Allow update by owner or admin
+      // Special case: Allow FCM token updates by the user themselves
+      allow update: if isOwner(userId) || isAdmin();
+      
+      // Only admin can delete users
+      allow delete: if isAdmin();
+      
+      // User's shopping cart - subcollection
+      match /Cart/{cartItemId} {
+        allow read, write: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+      
+      // User's shipping addresses - subcollection
+      match /Address/{addressId} {
+        allow read, write: if isOwner(userId);
+        allow delete: if isOwner(userId);
+      }
+    }
+    
+    // ============================================
+    // USER LOOKUP (for phone/email uniqueness)
+    // ============================================
+    match /UserLookup/{lookupId} {
+      // Open read/write for signup validation - anyone can check/create
+      allow read, write: if true;
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // SELLER COLLECTION
+    // ============================================
+    match /Seller/{sellerId} {
+      // Allow read for all authenticated users (to view seller profiles)
+      allow read: if isSignedIn();
+      
+      // Allow create only for the seller themselves
+      allow create: if isOwner(sellerId);
+      
+      // Allow update only by owner or admin
+      allow update: if isSellerOwner(sellerId) || isAdmin();
+      
+      // Only admin can delete sellers
+      allow delete: if isAdmin();
+      
+      // Seller sub-accounts/members - subcollection
+      match /members/{memberId} {
+        allow read: if isSellerOwner(sellerId) || isAdmin();
+        allow write: if isSellerOwner(sellerId) || isAdmin();
+        allow delete: if isSellerOwner(sellerId) || isAdmin();
+      }
+      
+      // Seller reports - subcollection (aggregated data)
+      match /reports/{reportId} {
+        allow read: if isSellerOwner(sellerId) || isAdmin();
+        allow write: if isAdmin(); // Only system/admin creates reports
+        allow delete: if isAdmin();
+      }
+    }
+    
+    // ============================================
+    // PRODUCT COLLECTION
+    // ============================================
+    match /Product/{productId} {
+      // Allow read for all authenticated users
+      allow read: if true;
+      
+      // Allow create only by sellers
+      allow create: if isSeller() && 
+                      request.resource.data.sellerId == request.auth.uid &&
+                      hasValidFields(['name', 'description', 'sellerId', 'categoryID']);
+      
+      // Allow update only by product owner (seller) or admin
+      allow update: if (isSeller() && resource.data.sellerId == request.auth.uid) || 
+                      isAdmin();
+      
+      // Allow delete only by product owner or admin
+      allow delete: if (resource.data.sellerId == request.auth.uid) || isAdmin();
+      
+      // Product variations - subcollection
+  		  match /Variation/{variationId} {
+        allow read: if true;
+        allow write: if (isSeller() && get(/databases/$(database)/documents/Product/$(productId)).data.sellerId == request.auth.uid) || 
+                       isAdmin();
+        allow delete: if (get(/databases/$(database)/documents/Product/$(productId)).data.sellerId == request.auth.uid) || 
+                        isAdmin();
+    		  }
+
+      // Product logs - subcollection (audit trail)
+      match /Logs/{logId} {
+        allow read: if (get(/databases/$(database)/documents/Product/$(productId)).data.sellerId == request.auth.uid) || 
+                      isAdmin();
+ 			 allow write: if (get(/databases/$(database)/documents/Product/$(productId)).data.sellerId == request.auth.uid) || isAdmin();
+      }
+      
+      // Product inquiries - subcollection
+      match /Inquiries/{inquiryId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isOwner(resource.data.userId) || isAdmin();
+      }
+    }
+    
+    // ============================================
+    // CATEGORY COLLECTION
+    // ============================================
+    match /Category/{categoryId} {
+      // Allow read for all authenticated users
+      allow read: if isSignedIn();
+      
+      // Only admin can write/delete categories
+      allow write, delete: if isAdmin();
+      
+      // Subcategories - subcollection
+      match /subCategory/{subCategoryId} {
+        allow read: if isSignedIn();
+        allow write, delete: if isAdmin();
+      }
+      
+      // Category click tracking
+      match /SubCategoryClicks/{clickId} {
+        allow read: if isAdmin();
+        allow write: if isSignedIn(); // Track clicks
+      }
+    }
+    
+    // ============================================
+    // ORDER COLLECTION
+    // ============================================
+    match /Order/{orderId} {
+      // Allow read if user is buyer, seller, or admin/CSR
+      allow read: if isOwner(resource.data.userId) || 
+                    (isSeller() && request.auth.uid in resource.data.sellerIds) ||
+                    isAdmin() || 
+                    isCSR();
+      
+      // Allow create only by the buyer themselves
+      allow create: if isSignedIn() && 
+                      request.resource.data.userId == request.auth.uid &&
+                      hasValidFields(['userId', 'items', 'summary', 'shippingInfo', 'paymongo']);
+      
+      // Allow update by buyer (for cancellation), seller (for status updates), or admin
+      allow update: if isOwner(resource.data.userId) || 
+                      (isSeller() && request.auth.uid in resource.data.sellerIds) ||
+                      isAdmin() ||
+                      isCSR();
+      
+      // Only admin can delete orders
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // RETURN REQUEST COLLECTION
+    // ============================================
+    match /ReturnRequest/{returnId} {
+      // Helper function to check if seller owns the order associated with this return request
+      function isOrderSeller() {
+        let order = get(/databases/$(database)/documents/Order/$(resource.data.orderId));
+        return order != null && 
+               order.data.sellerIds != null && 
+               request.auth.uid in order.data.sellerIds;
+      }
+      
+      // Helper function for create - check against incoming data
+      function isOrderSellerOnCreate() {
+        let order = get(/databases/$(database)/documents/Order/$(request.resource.data.orderId));
+        return order != null && 
+               order.data.sellerIds != null && 
+               request.auth.uid in order.data.sellerIds;
+      }
+      
+      // Allow read if user is the requester, seller (of the associated order), or admin
+      allow read: if isOwner(resource.data.userId) ||
+                    (isSeller() && isOrderSeller()) ||
+                    isAdmin() ||
+                    isCSR();
+      
+      // Allow create only by the buyer
+      allow create: if isSignedIn() && 
+                      request.resource.data.userId == request.auth.uid &&
+                      hasValidFields(['orderId', 'userId', 'reason']);
+      
+      // Allow update by seller (for approval/rejection) or admin
+      allow update: if (isSeller() && isOrderSeller()) ||
+                      isAdmin() ||
+                      isCSR();
+      
+      // Only admin can delete return requests
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // PLATFORM POLICIES COLLECTION
+    // ============================================
+    match /platform_policies/{policyId} {
+      // Allow read for all authenticated users
+      allow read: if isSignedIn();
+      
+      // Only admin can write/delete policies
+      allow write, delete: if isAdmin();
+    }
+    
+    // ============================================
+    // WEB USERS (Admin/CSR accounts)
+    // ============================================
+    match /web_users/{userId} {
+      // Only admin can read all web users
+      allow read: if isAdmin() || isOwner(userId);
+      
+      // Only admin can create/update/delete web users
+      allow write, delete: if isAdmin();
+    }
+    
+    // ============================================
+    // INVENTORY COLLECTION
+    // ============================================
+    match /inventory_items/{itemId} {
+      // Allow read for all authenticated users
+      allow read: if isSignedIn();
+      
+      // Allow write only by sellers or admin
+      allow write: if (isSeller() && request.resource.data.sellerId == request.auth.uid) || 
+                     isAdmin();
+      
+      allow delete: if (resource.data.sellerId == request.auth.uid) || isAdmin();
+    }
+    
+    match /inventory_adjustments/{adjustmentId} {
+      allow read: if isSignedIn();
+      allow write: if isSeller() || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // WITHDRAWAL COLLECTION
+    // ============================================
+    match /withdrawals/{withdrawalId} {
+      // Allow read if user is the requester or admin
+      allow read: if isOwner(resource.data.sellerId) || isAdmin() || isCSR();
+      
+      // Allow create only by sellers
+      allow create: if isSeller() && 
+                      request.resource.data.sellerId == request.auth.uid &&
+                      hasValidFields(['sellerId', 'amount', 'status']);
+      
+      // Allow update only by admin (for approval/rejection)
+      allow update: if isAdmin() || isCSR();
+      
+      // Only admin can delete withdrawals
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // PRODUCT QC AUDIT COLLECTION
+    // ============================================
+    match /Product_QC_Audit/{auditId} {
+      allow read: if isAdmin() || isCSR();
+      allow write: if isAdmin() || isCSR();
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // BOOKING COLLECTION (if applicable)
+    // ============================================
+    match /bookings/{bookingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isOwner(resource.data.userId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // WARRANTY COLLECTION
+    // ============================================
+    match /warranties/{warrantyId} {
+      allow read: if isSignedIn();
+      allow write: if isSeller() || isAdmin();
+      allow delete: if isAdmin();
+    }
+    
+    // ============================================
+    // DEFAULT DENY ALL OTHER PATHS
+    // ============================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

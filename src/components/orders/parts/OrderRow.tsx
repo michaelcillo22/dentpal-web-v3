@@ -44,7 +44,7 @@ const buildInvoiceHTML = async (order: Order) => {
   }
   
   // Generate QR code for tracking ID
-  const trackingId = order.shippingInfo?.jrs?.trackingId || order.barcode || 'N/A';
+  const trackingId = order.shippingInfo?.jrs?.trackingId || 'N/A';
   let qrCodeDataUrl = '';
   try {
     qrCodeDataUrl = await QRCode.toDataURL(trackingId, {
@@ -143,6 +143,25 @@ const buildInvoiceHTML = async (order: Order) => {
       ${itemsMarkup}
     </div>
 
+    {/* Summary: Price Breakdown with Package and Shipping Fee */}
+    <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div className="text-sm text-gray-600">
+        <div className="font-medium">Package</div>
+        <div className="text-sm text-gray-500 mt-1">
+          {/* Show ProductName from JRS response if available */}
+          ${order.shippingInfo?.jrs?.response?.ProductName || order.package?.size || '—'}
+        </div>
+        <div className="font-medium mt-3">Shipping Fee</div>
+        <div className="text-sm text-gray-500 mt-1">
+          ${typeof order.summary?.shippingCost === 'number' ? `${order.currency || 'PHP'} ${order.summary.shippingCost}` : '—'}
+        </div>
+      </div>
+      <div className="text-right">
+        <div className="text-xs text-gray-500">Total Amount</div>
+        <div className="text-lg font-semibold">${order.currency || 'PHP'} ${order.total != null ? order.total : ''}</div>
+      </div>
+    </div>
+
     <div class="section row">
       <div class="label">Total</div>
       <div class="total">${currency} ${total}</div>
@@ -171,8 +190,8 @@ const printInvoice = async (order: Order) => {
 
 const exportCSV = (order: Order) => {
   const rows: string[][] = [];
-  rows.push(['Order ID','Date','Buyer','Contact','Barcode','Status','Currency']);
-  rows.push([order.id, order.timestamp, order.customer.name, order.customer.contact, order.barcode, order.status, order.currency || 'PHP']);
+  rows.push(['Order ID','Date','Buyer','Contact','Status','Currency']);
+  rows.push([order.id, order.timestamp, order.customer.name, order.customer.contact, order.status, order.currency || 'PHP']);
   rows.push([]);
   rows.push(['Items']);
   rows.push(['Name','Quantity','Price']);
@@ -182,6 +201,8 @@ const exportCSV = (order: Order) => {
     rows.push([order.itemsBrief || `${order.orderCount} item(s)`, '', '']);
   }
   rows.push([]);
+  rows.push(['Package', '', order.shippingInfo?.jrs?.response?.ProductName || order.package?.size || '—']);
+  rows.push(['Shipping Fee', '', typeof order.summary?.shippingCost === 'number' ? String(order.summary.shippingCost) : '—']);
   rows.push(['Total', '', String(order.total ?? '')]);
 
   const csv = rows.map(r => r.map(v => `"${String(v ?? '').replace(/"/g,'""')}"`).join(',')).join('\n');
@@ -473,11 +494,18 @@ const OrderRow: React.FC<OrderRowProps> = ({ order, onDetails, onClick, isToShip
               </div>
             </div>
 
-            {/* Summary: Total and Package */}
+            {/* Summary: Price Breakdown with Package and Shipping Fee */}
             <div className="mt-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div className="text-sm text-gray-600">
                 <div className="font-medium">Package</div>
-                <div className="text-sm text-gray-500 mt-1">{order.package?.size || '—'}</div>
+                <div className="text-sm text-gray-500 mt-1">
+                  {/* Show ProductName from JRS response if available */}
+                  {order.shippingInfo?.jrs?.response?.ProductName || order.package?.size || '—'}
+                </div>
+                <div className="font-medium mt-3">Shipping Fee</div>
+                <div className="text-sm text-gray-500 mt-1">
+                  {typeof order.summary?.shippingCost === 'number' ? `${order.currency || 'PHP'} ${order.summary.shippingCost}` : '—'}
+                </div>
               </div>
 
               <div className="text-right">

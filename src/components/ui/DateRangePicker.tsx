@@ -65,6 +65,26 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({ value, onChang
       </button>
       {show && (
         <div className="absolute left-0 mt-2 z-30 w-[300px] border border-gray-200 rounded-xl bg-white shadow-xl p-3 space-y-3 animate-fade-in">
+          {/* Quick select buttons */}
+          <div className="flex gap-2 mb-2">
+            <button type="button" onClick={() => {
+              const today = new Date();
+              today.setHours(0,0,0,0);
+              onChange({ start: today, end: today });
+            }} className="text-xs px-2 py-1 rounded border bg-gray-50 hover:bg-gray-100">Today</button>
+            <button type="button" onClick={() => {
+              const today = new Date();
+              today.setHours(0,0,0,0);
+              const last7 = new Date(today.getTime() - 6*86400000);
+              onChange({ start: last7, end: today });
+            }} className="text-xs px-2 py-1 rounded border bg-gray-50 hover:bg-gray-100">Last 7 days</button>
+            <button type="button" onClick={() => {
+              const today = new Date();
+              today.setHours(0,0,0,0);
+              const last30 = new Date(today.getTime() - 29*86400000);
+              onChange({ start: last30, end: today });
+            }} className="text-xs px-2 py-1 rounded border bg-gray-50 hover:bg-gray-100">Last 30 days</button>
+          </div>
           {/* Calendar header */}
           <div className="flex items-center justify-between">
             <button type="button" onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth()-1, 1))} className="px-2 py-1 text-xs rounded border bg-white hover:bg-gray-100">◀</button>
