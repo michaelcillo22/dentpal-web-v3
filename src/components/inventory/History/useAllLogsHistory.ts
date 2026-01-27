@@ -64,14 +64,16 @@ export function useAllLogsHistory() {
         const rows: LogHistoryRow[] = docsData.map(d => {
           const modifiedByName = d.userId && userProfiles[d.userId]?.name ? userProfiles[d.userId]?.name : d.userId || '';
           let timestampRaw: string | number = '';
+          let dateObj: Date | null = null;
           if (d.createdAt?.toDate) {
-            const dateObj = d.createdAt.toDate();
+            dateObj = d.createdAt.toDate();
             timestampRaw = dateObj.toISOString(); // ISO string for stable parsing
           } else if (d.createdAt?._seconds) {
+            dateObj = new Date(d.createdAt._seconds * 1000);
             timestampRaw = d.createdAt._seconds * 1000; // epoch ms fallback
           }
           return {
-            timestamp: d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString() : '',
+            timestamp: dateObj ? dateObj.toLocaleString() : '',
             timestampRaw,
             action: d.action || '',
             adjustment: d.adjustment ?? 0,

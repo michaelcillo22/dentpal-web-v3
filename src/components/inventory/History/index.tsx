@@ -38,7 +38,7 @@ const History: React.FC = () => {
 		});
 
 	// Helper to format timestamp without milliseconds
-	function formatTimestamp(ts: string): string {
+	function formatTimestamp(ts: string | number): string {
 		if (!ts) return '';
 		const d = new Date(ts);
 		if (isNaN(d.getTime())) return String(ts);

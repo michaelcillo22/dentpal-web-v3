@@ -94,7 +94,7 @@ const StockAdjustment: React.FC = () => {
 				const variation = variations.find(v => v.id === adj.variationId);
 				// Fallback logic for sellerId and userName
 				const sellerId = selectedProduct.sellerId || selectedProduct.sellerID || uid || '';
-				const userName = selectedProduct.userName || selectedProduct.sellerName || selectedProduct.sellerName || uid || '';
+				const userName = selectedProduct.userName || selectedProduct.sellerName || uid || '';
 				await logStockAdjustment({
 					productId: selectedProduct.id || '',
 					productName: selectedProduct.product || selectedProduct.name || '',
