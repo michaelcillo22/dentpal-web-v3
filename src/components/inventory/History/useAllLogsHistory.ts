@@ -7,7 +7,8 @@ import firebaseApp from '@/lib/firebase';
 const db = getFirestore(firebaseApp);
 
 export interface LogHistoryRow {
-  timestamp: string;
+  timestamp: string; // locale string for display
+  timestampRaw: string | number; // ISO string or epoch ms for stable filtering
   action: string;
   adjustment: number;
   afterStock: number;
@@ -48,16 +49,32 @@ export function useAllLogsHistory() {
         // Fetch all unique userIds
         const docsData = snapshot.docs.map(doc => doc.data());
         const userIds = Array.from(new Set(docsData.map(d => d.userId).filter(Boolean)));
-        // Fetch all user profiles in parallel
+        // Fetch all user profiles in parallel, tolerate failures
         const userProfiles: Record<string, SellerProfile | null> = {};
-        await Promise.all(userIds.map(async (uid) => {
-          userProfiles[uid] = await SellersService.get(uid);
-        }));
+        const profileResults = await Promise.allSettled(userIds.map(uid => SellersService.get(uid)));
+        userIds.forEach((uid, idx) => {
+          const result = profileResults[idx];
+          if (result.status === 'fulfilled') {
+            userProfiles[uid] = result.value;
+          } else {
+            userProfiles[uid] = null;
+          }
+        });
 
         const rows: LogHistoryRow[] = docsData.map(d => {
           const modifiedByName = d.userId && userProfiles[d.userId]?.name ? userProfiles[d.userId]?.name : d.userId || '';
+          let timestampRaw: string | number = '';
+          let dateObj: Date | null = null;
+          if (d.createdAt?.toDate) {
+            dateObj = d.createdAt.toDate();
+            timestampRaw = dateObj.toISOString(); // ISO string for stable parsing
+          } else if (d.createdAt?._seconds) {
+            dateObj = new Date(d.createdAt._seconds * 1000);
+            timestampRaw = d.createdAt._seconds * 1000; // epoch ms fallback
+          }
           return {
-            timestamp: d.createdAt?.toDate ? d.createdAt.toDate().toLocaleString() : '',
+            timestamp: dateObj ? dateObj.toLocaleString() : '',
+            timestampRaw,
             action: d.action || '',
             adjustment: d.adjustment ?? 0,
             afterStock: d.after?.stock ?? 0,

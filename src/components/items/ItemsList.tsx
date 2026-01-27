@@ -654,7 +654,7 @@ const ItemsList: React.FC = () => {
             })}
             {pagedItems.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-xs text-gray-500">No products found.</td>
+                <td colSpan={6} className="px-4 py-8 text-center text-xs text-gray-500">No products found.</td>
               </tr>
             )}
           </tbody>
