@@ -277,12 +277,17 @@ service cloud.firestore {
     match /inventory_items/{itemId} {
       // Allow read for all authenticated users
       allow read: if isSignedIn();
-      
-      // Allow write only by sellers or admin
-      allow write: if (isSeller() && request.resource.data.sellerId == request.auth.uid) || 
-                     isAdmin();
-      
+
+      // Create: seller must own the new doc
+      allow create: if (isSeller() && request.resource.data.sellerId == request.auth.uid) || isAdmin();
+
+      // Update: seller must already own the doc and cannot change sellerId
+      allow update: if (isSeller() &&
+                        resource.data.sellerId == request.auth.uid &&
+                        request.resource.data.sellerId == resource.data.sellerId) || isAdmin();
+
       allow delete: if (resource.data.sellerId == request.auth.uid) || isAdmin();
+    }
     }
     
     match /inventory_adjustments/{adjustmentId} {
