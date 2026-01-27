@@ -61,13 +61,12 @@ const menuItems: MenuItem[] = [
   // { id: "booking", label: "Booking", icon: Calendar }, // HIDE BOOKING FOR ADMIN
   // Booking tab is now fully hidden for all users
   { id: 'seller-orders', label: 'Seller Orders', icon: Calendar },
-  { id: 'reports', label: 'Reports', icon: BarChart3 },
+  // { id: 'reports', label: 'Reports', icon: BarChart3 },
   { 
     id: "inventory", 
     label: "Inventory", 
     icon: Package,
     subItems: [
-      { id: "inventory-all", label: "All", icon: List },
       { id: "inventory-history", label: "History", icon: History },
       { id: "stock-adjustment", label: "Stock Adjustment", icon: Edit },
     ]
@@ -77,7 +76,7 @@ const menuItems: MenuItem[] = [
     label: "Items", 
     icon: PlusSquare,
     subItems: [
-      { id: "items-all", label: "All", icon: List },
+      // { id: "items-all", label: "All", icon: List },
       { id: "items-list", label: "Item List", icon: Edit },
       { id: "items-add", label: "Add Item", icon: Plus }
     ]

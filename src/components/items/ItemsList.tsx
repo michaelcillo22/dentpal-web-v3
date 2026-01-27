@@ -7,6 +7,7 @@
  */
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { ProductService } from '@/services/product';
@@ -39,10 +40,14 @@ interface InventoryItem {
 }
 
 const ItemsList: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [categoryMap, setCategoryMap] = useState<Record<string, string>>({});
+  // Map subCategoryID to parent categoryName
+  const [subcategoryToCategory, setSubcategoryToCategory] = useState<Record<string, string>>({});
 
   const { uid, isSeller, isAdmin, isSubAccount, parentId } = useAuth();
   const { toast } = useToast();
@@ -119,16 +124,31 @@ const ItemsList: React.FC = () => {
     };
   }, []);
 
-  // Load categories
+  // Load categories and subcategories mapping
   useEffect(() => {
-    const unsub = CategoryService.listenCategories((categories) => {
+    let unsubCategory: (() => void) | null = null;
+    let unsubSubcategories: Record<string, (() => void)> = {};
+    unsubCategory = CategoryService.listenCategories((categories) => {
       const map: Record<string, string> = {};
+      const subToCat: Record<string, string> = {};
       categories.forEach(cat => {
         map[cat.id] = cat.name;
+        // Listen to subcategories for each category
+        if (!unsubSubcategories[cat.id]) {
+          unsubSubcategories[cat.id] = CategoryService.listenSubcategories(cat.id, (subs) => {
+            subs.forEach(sub => {
+              subToCat[sub.id] = cat.name;
+            });
+            setSubcategoryToCategory(prev => ({ ...prev, ...subToCat }));
+          });
+        }
       });
       setCategoryMap(map);
     });
-    return () => unsub();
+    return () => {
+      if (unsubCategory) unsubCategory();
+      Object.values(unsubSubcategories).forEach(unsub => unsub());
+    };
   }, []);
 
   // Load products
@@ -490,6 +510,20 @@ const ItemsList: React.FC = () => {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
+        
+          <button
+          className="ml-2 px-4 py-2 rounded-lg bg-green-600 text-white font-semibold text-sm shadow hover:bg-green-700 transition"
+          style={{ minWidth: 110 }}
+          onClick={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.set('tab', 'items-add');
+            window.history.pushState({}, '', url.pathname + url.search);
+            window.dispatchEvent(new Event('popstate'));
+          }}
+        >
+          Add Item
+        </button>
+
         <input
           value={filterName}
           onChange={(e) => setFilterName(e.target.value)}
@@ -506,6 +540,7 @@ const ItemsList: React.FC = () => {
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
+   
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as any)}
@@ -515,17 +550,20 @@ const ItemsList: React.FC = () => {
           <option value="stock">Sort by: Stock (desc)</option>
           <option value="updatedAt">Sort by: Updated</option>
         </select>
+
       </div>
 
-      {/* Table - WITH Active column AND Edit Item column */}
+
+      {/* Table - Product name | Category | Price | Stock | Active */}
       <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b border-gray-200">
             <tr className="text-left">
-              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide">PRODUCT</th>
-              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide hidden sm:table-cell">PRICE</th>
+              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide">PRODUCT NAME</th>
+              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide">CATEGORY</th>
+              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide">PRICE</th>
               <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide">STOCK</th>
-              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide hidden md:table-cell">ACTIVE</th>
+              <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide">ACTIVE</th>
               <th className="px-4 py-3 text-left text-[11px] font-semibold text-gray-600 tracking-wide">EDIT ITEM</th>
             </tr>
           </thead>
@@ -535,9 +573,18 @@ const ItemsList: React.FC = () => {
               const status = (item.status ?? 'active');
               const isActive = status === 'active';
               const isDeleted = status === 'deleted';
-              
+              // Get category name from subcategory mapping if available
+              let displayCategory = item.categoryName || 'Uncategorized';
+              if (item.subCategoryID && subcategoryToCategory[item.subCategoryID]) {
+                displayCategory = subcategoryToCategory[item.subCategoryID];
+              }
               return (
-                <tr key={item.id} className="border-b last:border-0 hover:bg-gray-50">
+                <tr
+                  key={item.id}
+                  className="border-b last:border-0 hover:bg-gray-50 cursor-pointer group"
+                  onClick={() => !isDeleted && handleEditItem(item)}
+                >
+                  {/* Product Name */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3 min-w-0">
                       {item.imageUrl ? (
@@ -549,13 +596,13 @@ const ItemsList: React.FC = () => {
                       )}
                       <div className="min-w-0">
                         <div className="truncate font-medium text-gray-900">{item.name}</div>
-                        <div className="text-xs text-gray-500 truncate">
-                          {item.categoryName || 'Uncategorized'}
-                        </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-700 hidden sm:table-cell">
+                  {/* Category */}
+                  <td className="px-4 py-3 text-gray-700">{displayCategory}</td>
+                  {/* Price */}
+                  <td className="px-4 py-3 text-gray-700">
                     {item.price != null ? (
                       showSale ? (
                         <>
@@ -569,9 +616,10 @@ const ItemsList: React.FC = () => {
                       <span className="text-gray-400">—</span>
                     )}
                   </td>
+                  {/* Stock */}
                   <td className="px-4 py-3 text-gray-700">{item.inStock}</td>
-                  {/* ACTIVE Toggle Column */}
-                  <td className="px-4 py-3 hidden md:table-cell">
+                  {/* Active Toggle */}
+                  <td className="px-4 py-3">
                     <label className={`inline-flex items-center select-none ${isDeleted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
                       <input
                         type="checkbox"
@@ -587,10 +635,9 @@ const ItemsList: React.FC = () => {
                       />
                     </label>
                   </td>
-                  {/* EDIT ITEM Button Column - GREEN */}
-                  <td className="px-4 py-3">
+                  {/* Edit Item Button */}
+                  <td className="px-4 py-3" onClick={e => { e.stopPropagation(); handleEditItem(item); }}>
                     <button
-                      onClick={() => handleEditItem(item)}
                       disabled={isDeleted}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg shadow-sm transition
                         ${isDeleted 

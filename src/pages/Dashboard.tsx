@@ -500,7 +500,6 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
     'inventory-all': 'inventory',
     'inventory-history': 'inventory',
     'stock-adjustment': 'inventory',
-    'price-management': 'add-product',
     'item-management': 'inventory',
     'add-product': 'add-product',
    // notifications: 'dashboard',
@@ -825,12 +824,12 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
         `"${item.name}"`,
         item.sold,
         item.refunded,
-        item.grossSales.toFixed(2),
-        item.refunds.toFixed(2),
-        item.paymentFee.toFixed(2),
-        item.shippingFee.toFixed(2),
-        item.platformFee.toFixed(2),
-        item.netPayout.toFixed(2)
+        (Math.floor(item.grossSales * 100) / 100).toFixed(2),
+        (Math.floor(item.refunds * 100) / 100).toFixed(2),
+        (Math.floor(item.paymentFee * 100) / 100).toFixed(2),
+        (Math.floor(item.shippingFee * 100) / 100).toFixed(2),
+        (Math.floor(item.platformFee * 100) / 100).toFixed(2),
+        (Math.floor(item.netPayout * 100) / 100).toFixed(2)
       ]);
 
       const csvContent = [
@@ -1051,6 +1050,9 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
         if (!isAdmin) {
           const currency = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 });
           const fmtMins = (mins: number) => { const h = Math.floor(mins / 60); const m = mins % 60; return `${h}h ${m}m`; };
+          // Truncate to 2 decimal places without rounding
+          const truncate = (num: number) => Math.floor(num * 100) / 100;
+          const formatCurrency = (num: number) => currency.format(truncate(num));
           return (
             <div className="space-y-6">
               {/* Title + Tutorial */}
@@ -1198,7 +1200,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                   </div> */}
                   <div className="flex items-end gap-2 pt-2">
                     <button className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-medium rounded-lg shadow-sm transition">Apply</button>
-                    <button onClick={()=> setSellerFilters({ dateRange: "last-30", brand: "all", subcategory: "all", location: "all", paymentType: "all", viewType: "summary" })} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition">Reset</button>
+                    <button onClick={()=> setSellerFilters({ dateRange: "last-30", brand: "all", subcategory: "all", location: "all", paymentType: "all", viewType: "summary", viewExpanded: false })} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-medium rounded-lg transition">Reset</button>
                   </div>
                 </div>
               </div>
@@ -1235,7 +1237,8 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                     <div className="mt-2 text-[11px] text-gray-500">(date)</div>
                   </div>
 
-                  {/* Financial Summary Table */}
+                  {/* Financial Summary Table 
+                  */}
                   <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                     <div className="px-6 py-4 border-b border-gray-100">
                       <h3 className="text-sm font-semibold text-gray-800 tracking-wide">FINANCIAL SUMMARY (PER DATE)</h3>
@@ -1244,7 +1247,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                       <table className="w-full text-sm">
                         <thead className="bg-gray-50 text-gray-600">
                           <tr className="text-left text-xs font-semibold tracking-wide">
-                            <th className="px-6 py-3">Date</th>
+                          <th className="px-6 py-3">Date</th>
                             <th className="px-6 py-3 text-right">Gross Sales</th>
                             <th className="px-6 py-3 text-right">Refunds</th>
                             <th className="px-6 py-3 text-right">Payment Fee</th>
@@ -1255,7 +1258,6 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                         </thead>
                         <tbody>
                           {(() => {
-                            // Group orders by date
                             const ordersByDate = new Map<string, typeof paidOrders>();
                             const formatDateKey = (date: Date) => {
                               return date.toLocaleDateString('en-US', { 
@@ -1293,13 +1295,14 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                               const dayMetrics = dayOrders.reduce((acc, o) => {
                                 const summary = o.summary || {};
                                 const feesData = o.feesBreakdown || {};
-                                const payout = o.payout || {};
                                 
                                 const gross = Number(summary.subtotal || 0);
+                                const refunds = 0; // Currently no refunds tracked
                                 const paymentFee = Number(feesData.paymentProcessingFee || 0);
                                 const shippingFee = Number(summary.sellerShippingCharge || 0);
                                 const platformFee = Number(feesData.platformFee || 0);
-                                const netPayout = Number(payout.netPayoutToSeller || 0);
+                                // Calculate Net Payout: Gross - Refunds - Payment Fee - Shipping Fee - Platform Fee
+                                const netPayout = gross - refunds - paymentFee - shippingFee - platformFee;
                                 
                                 return {
                                   totalGross: acc.totalGross + gross,
@@ -1344,7 +1347,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                     {currency.format(dayMetrics.totalPlatformFee)}
                                   </td>
                                   <td className="px-6 py-4 text-green-600 text-right font-bold">
-                                    {currency.format(dayMetrics.totalNetPayout)}
+                                    {formatCurrency(dayMetrics.totalNetPayout)}
                                   </td>
                                 </tr>
                               );
@@ -1372,7 +1375,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                   {currency.format(grandTotalPlatformFee)}
                                 </td>
                                 <td className="px-6 py-4 text-green-600 text-right text-base">
-                                  {currency.format(grandTotalNetPayout)}
+                                  {formatCurrency(grandTotalNetPayout)}
                                 </td>
                               </tr>
                             );
@@ -1483,7 +1486,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                     </div>
                                     <div className="flex-1 min-w-0">
                                       <div className="text-sm font-medium text-gray-900 truncate">{item.name}</div>
-                                      <div className="text-xs text-gray-500 mt-1">Net Payout: <span className="font-semibold text-green-600">{currency.format(item.netPayout)}</span></div>
+                                      <div className="text-xs text-gray-500 mt-1">Net Payout: <span className="font-semibold text-green-600">{formatCurrency(item.netPayout)}</span></div>
                                     </div>
                                   </div>
                                 ))}
@@ -1807,12 +1810,12 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                 <td className="px-6 py-4 text-gray-900 font-medium">{item.name}</td>
                                 <td className="px-6 py-4 text-gray-700 text-right">{item.sold.toLocaleString()}</td>
                                 <td className="px-6 py-4 text-red-600 text-right">{item.refunded.toLocaleString()}</td>
-                                <td className="px-6 py-4 text-gray-900 text-right font-medium">{currency.format(item.grossSales)}</td>
-                                <td className="px-6 py-4 text-red-600 text-right">{currency.format(item.refunds)}</td>
-                                <td className="px-6 py-4 text-red-600 text-right">{currency.format(item.paymentFee)}</td>
-                                <td className="px-6 py-4 text-orange-600 text-right">{currency.format(item.shippingFee)}</td>
-                                <td className="px-6 py-4 text-red-600 text-right">{currency.format(item.platformFee)}</td>
-                                <td className="px-6 py-4 text-green-600 text-right font-bold text-base">{currency.format(item.netPayout)}</td>
+                                <td className="px-6 py-4 text-gray-900 text-right font-medium">{formatCurrency(item.grossSales)}</td>
+                                <td className="px-6 py-4 text-red-600 text-right">{formatCurrency(item.refunds)}</td>
+                                <td className="px-6 py-4 text-red-600 text-right">{formatCurrency(item.paymentFee)}</td>
+                                <td className="px-6 py-4 text-orange-600 text-right">{formatCurrency(item.shippingFee)}</td>
+                                <td className="px-6 py-4 text-red-600 text-right">{formatCurrency(item.platformFee)}</td>
+                                <td className="px-6 py-4 text-green-600 text-right font-bold text-base">{formatCurrency(item.netPayout)}</td>
                               </tr>
                             ));
                           })()}
@@ -1928,12 +1931,12 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                               `"${cat.name}"`,
                               cat.sold,
                               cat.refunded,
-                              cat.grossSales.toFixed(2),
-                              cat.refunds.toFixed(2),
-                              cat.paymentFee.toFixed(2),
-                              cat.shippingFee.toFixed(2),
-                              cat.platformFee.toFixed(2),
-                              cat.netPayout.toFixed(2)
+                              (Math.floor(cat.grossSales * 100) / 100).toFixed(2),
+                              (Math.floor(cat.refunds * 100) / 100).toFixed(2),
+                              (Math.floor(cat.paymentFee * 100) / 100).toFixed(2),
+                              (Math.floor(cat.shippingFee * 100) / 100).toFixed(2),
+                              (Math.floor(cat.platformFee * 100) / 100).toFixed(2),
+                              (Math.floor(cat.netPayout * 100) / 100).toFixed(2)
                             ]);
 
                             const csvContent = [
@@ -2068,12 +2071,12 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                 <td className="px-6 py-4 text-gray-900 font-medium">{category.name}</td>
                                 <td className="px-6 py-4 text-gray-700 text-right">{category.sold.toLocaleString()}</td>
                                 <td className="px-6 py-4 text-red-600 text-right">{category.refunded.toLocaleString()}</td>
-                                <td className="px-6 py-4 text-gray-900 text-right font-medium">{currency.format(category.grossSales)}</td>
-                                <td className="px-6 py-4 text-red-600 text-right">{currency.format(category.refunds)}</td>
-                                <td className="px-6 py-4 text-red-600 text-right">{currency.format(category.paymentFee)}</td>
-                                <td className="px-6 py-4 text-orange-600 text-right">{currency.format(category.shippingFee)}</td>
-                                <td className="px-6 py-4 text-red-600 text-right">{currency.format(category.platformFee)}</td>
-                                <td className="px-6 py-4 text-green-600 text-right font-bold text-base">{currency.format(category.netPayout)}</td>
+                                <td className="px-6 py-4 text-gray-900 text-right font-medium">{formatCurrency(category.grossSales)}</td>
+                                <td className="px-6 py-4 text-red-600 text-right">{formatCurrency(category.refunds)}</td>
+                                <td className="px-6 py-4 text-red-600 text-right">{formatCurrency(category.paymentFee)}</td>
+                                <td className="px-6 py-4 text-orange-600 text-right">{formatCurrency(category.shippingFee)}</td>
+                                <td className="px-6 py-4 text-red-600 text-right">{formatCurrency(category.platformFee)}</td>
+                                <td className="px-6 py-4 text-green-600 text-right font-bold text-base">{formatCurrency(category.netPayout)}</td>
                               </tr>
                             ));
                           })()}
@@ -2191,12 +2194,12 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                               `"${pt.name}"`,
                               pt.sold,
                               pt.refunded,
-                              pt.grossSales.toFixed(2),
-                              pt.refunds.toFixed(2),
-                              pt.paymentFee.toFixed(2),
-                              pt.shippingFee.toFixed(2),
-                              pt.platformFee.toFixed(2),
-                              pt.netPayout.toFixed(2)
+                              (Math.floor(pt.grossSales * 100) / 100).toFixed(2),
+                              (Math.floor(pt.refunds * 100) / 100).toFixed(2),
+                              (Math.floor(pt.paymentFee * 100) / 100).toFixed(2),
+                              (Math.floor(pt.shippingFee * 100) / 100).toFixed(2),
+                              (Math.floor(pt.platformFee * 100) / 100).toFixed(2),
+                              (Math.floor(pt.netPayout * 100) / 100).toFixed(2)
                             ]);
 
                             const csvContent = [
@@ -2333,12 +2336,12 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                 <td className="px-6 py-4 text-gray-900 font-medium">{paymentType.name}</td>
                                 <td className="px-6 py-4 text-gray-700 text-right">{paymentType.sold.toLocaleString()}</td>
                                 <td className="px-6 py-4 text-red-600 text-right">{paymentType.refunded.toLocaleString()}</td>
-                                <td className="px-6 py-4 text-gray-900 text-right font-medium">{currency.format(paymentType.grossSales)}</td>
-                                <td className="px-6 py-4 text-red-600 text-right">{currency.format(paymentType.refunds)}</td>
-                                <td className="px-6 py-4 text-red-600 text-right">{currency.format(paymentType.paymentFee)}</td>
-                                <td className="px-6 py-4 text-orange-600 text-right">{currency.format(paymentType.shippingFee)}</td>
-                                <td className="px-6 py-4 text-red-600 text-right">{currency.format(paymentType.platformFee)}</td>
-                                <td className="px-6 py-4 text-green-600 text-right font-bold text-base">{currency.format(paymentType.netPayout)}</td>
+                                <td className="px-6 py-4 text-gray-900 text-right font-medium">{formatCurrency(paymentType.grossSales)}</td>
+                                <td className="px-6 py-4 text-red-600 text-right">{formatCurrency(paymentType.refunds)}</td>
+                                <td className="px-6 py-4 text-red-600 text-right">{formatCurrency(paymentType.paymentFee)}</td>
+                                <td className="px-6 py-4 text-orange-600 text-right">{formatCurrency(paymentType.shippingFee)}</td>
+                                <td className="px-6 py-4 text-red-600 text-right">{formatCurrency(paymentType.platformFee)}</td>
+                                <td className="px-6 py-4 text-green-600 text-right font-bold text-base">{formatCurrency(paymentType.netPayout)}</td>
                               </tr>
                             ));
                           })()}
@@ -2413,7 +2416,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                         </div>
                         <div className="text-xs font-semibold text-rose-600 bg-rose-200 px-2 py-1 rounded-full">
                           {(() => {
-                            const refundCount = filteredOrders.filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund').length;
+                            const refundCount = paidOrders.filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund').length;
                             return refundCount;
                           })()}
                         </div>
@@ -2422,13 +2425,13 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                         <p className="text-xs font-medium text-rose-700 uppercase tracking-wide">Total Refunds</p>
                         <p className="text-3xl font-bold text-rose-900">
                           {currency.format(
-                            filteredOrders
+                            paidOrders
                               .filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund')
                               .reduce((sum, o) => sum + (Number(o.summary?.subtotal) || 0), 0)
                           )}
                         </p>
                         <p className="text-xs text-rose-600">
-                          From {filteredOrders.filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund').length} refunded orders
+                          From {paidOrders.filter(o => o.status === 'refunded' || o.status === 'returned' || o.status === 'return_refund').length} refunded orders
                         </p>
                       </div>
                     </div>
@@ -2572,16 +2575,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                               
                               return (
                                 <tr 
-                                  key={order.id || idx}
-                                  role="button"
-                                  tabIndex={0}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.preventDefault();
-                                      setSelectedReceipt(order);
-                                      setReceiptDetailOpen(true);
-                                    }
-                                  }}
+                                  key={order.id || idx} 
                                   onClick={() => {
                                     setSelectedReceipt(order);
                                     setReceiptDetailOpen(true);
@@ -2595,7 +2589,6 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                       </div>
                                       <div>
                                         <div className="font-semibold text-gray-900">{order.id}</div>
-                                        <div className="text-xs text-gray-500">Barcode: {order.barcode || 'N/A'}</div>
                                       </div>
                                     </div>
                                   </td>
@@ -2710,10 +2703,6 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                               <span className="text-sm font-bold text-gray-900">{selectedReceipt.id}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-sm font-medium text-gray-600">Barcode</span>
-                              <span className="text-sm font-mono text-gray-900">{selectedReceipt.barcode || 'N/A'}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
                               <span className="text-sm font-medium text-gray-600">Status</span>
                               <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
                                 selectedReceipt.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
@@ -2823,7 +2812,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
                                         <div className="flex items-center justify-between">
                                           <span className="text-xs font-medium text-gray-600">Subtotal</span>
                                           <span className="text-base font-bold text-teal-600">
-                                            {currency.format(Number(item.subtotal) || ((Number(item.price) || 0) * (item.quantity || 1)))}
+                                            {currency.format((Number(item.price) || 0) * (item.quantity || 1))}
                                           </span>
                                         </div>
                                       </div>
@@ -3982,27 +3971,17 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
       case "inventory-all":
         if (!isAllowed("inventory")) return <div className="p-6 bg-white rounded-xl border">Access denied</div>;
         return (
-          <InventoryTab initialTab="all" />
+          <InventoryTab activeView="all" />
         );
       case "inventory-history":
         if (!isAllowed("inventory")) return <div className="p-6 bg-white rounded-xl border">Access denied</div>;
         return (
-          <InventoryTab initialTab="history" />
+          <InventoryTab activeView="history" />
         );
       case "stock-adjustment":
         if (!isAllowed("inventory")) return <div className="p-6 bg-white rounded-xl border">Access denied</div>;
         return (
-          <InventoryTab initialTab="add" />
-        );
-      case "price-management":
-        if (!isAllowed("add-product")) return <div className="p-6 bg-white rounded-xl border">Access denied</div>;
-        return (
-          <InventoryTab initialTab="price" />
-        );
-      case "item-management":
-        if (!isAllowed("inventory")) return <div className="p-6 bg-white rounded-xl border">Access denied</div>;
-        return (
-          <InventoryTab initialTab="item-management" />
+          <InventoryTab activeView="stock-adjustment" />
         );
       case "items":
         if (!isAllowed("add-product")) return <div className="p-6 bg-white rounded-xl border">Access denied</div>;
@@ -4061,7 +4040,7 @@ const Dashboard = ({ user, onLogout }: DashboardProps) => {
       case 'inventory-history': return 'Inventory - History';
       case 'inventory-control': return 'Inventory Control';
       case 'stock-adjustment': return 'Stock Adjustment';
-      case 'price-management': return 'Price Management';
+      // Removed: Price Management
       case 'item-management': return 'Item Management';
       case 'items': return 'Items';
       case 'items-all': return 'Items - All';
